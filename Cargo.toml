@@ -1,0 +1,46 @@
+[package]
+name = "http-diff"
+version = "0.0.1"
+edition = "2021"
+authors = ["Yoni Samoded <yoni.samoded@gmail.com>"]
+description = "Tool to compare http requests"
+license = "Unlicense OR MIT"
+documentation = "https://github.com/syte-ai/http-diff"
+homepage = "https://github.com/syte-ai/http-diff"
+repository = "https://github.com/syte-ai/http-diff"
+keywords = ["http", "diff", "compare", "api", "response"]
+categories = ["command-line-utilities", "web-programming"]
+
+[dependencies]
+clap = { version = "4.4.7", features = ["derive"] }
+serde_json = "1.0.99"
+serde = { version = "1.0.143", features = ["derive"] }
+tokio = { version = "1", features = ["full"] }
+url = {version="2.4.1", features = ["serde"]}
+anyhow = "1.0.75"
+thiserror = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["json"] }
+reqwest = { version = "0.11.22", features = ["json"] }
+futures = "0.3.28"
+futures-util = "0.3"
+regex = "1.10.2"
+ratatui = "0.24.0"
+crossterm = "0.27.0"
+chrono = "0.4.30"
+similar = "2.3.0"
+rand = "0.8.5"
+notify = "6.1.1"
+
+[dependencies.uuid]
+version = "1.4.1"
+features = [
+    "v4",              
+    "fast-rng",
+    "macro-diagnostics",
+]
+
+[build-dependencies]
+clap = { version = "4.4.7", features = ["derive", "cargo","env"] }
+clap_complete = "4.5.1"
+clap_mangen = "0.2.20"
