@@ -2,7 +2,7 @@ HTTP DIFF
 
 ---
 
-Tool to ensure multiple versions of the web server work the same. Useful for big refactors and sanity tests, where you need to check a lot of endpoints work the same and return the same data.
+http-diff - CLI tool to verify consistency across web server versions. Ideal for large-scale refactors, sanity tests and maintaining data integrity across versions.
 
 Dual-licensed under MIT or the [UNLICENSE](https://unlicense.org/).
 

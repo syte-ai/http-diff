@@ -3,7 +3,7 @@ name = "http-diff"
 version = "0.0.1"
 edition = "2021"
 authors = ["Yoni Samoded <yoni.samoded@gmail.com>"]
-description = "Tool to compare http requests"
+description = "http-diff - CLI tool to verify consistency across web server versions. Ideal for large-scale refactors, sanity tests and maintaining data integrity across versions."
 license = "Unlicense OR MIT"
 documentation = "https://github.com/syte-ai/http-diff"
 homepage = "https://github.com/syte-ai/http-diff"
@@ -31,6 +31,7 @@ chrono = "0.4.30"
 similar = "2.3.0"
 rand = "0.8.5"
 notify = "6.1.1"
+openssl = { version = "0.10", features = ["vendored"] }
 
 [dependencies.uuid]
 version = "1.4.1"
@@ -44,3 +45,32 @@ features = [
 clap = { version = "4.4.7", features = ["derive", "cargo","env"] }
 clap_complete = "4.5.1"
 clap_mangen = "0.2.20"
+
+[profile.release]
+opt-level = 3
+debug = "none"
+strip = "symbols"
+debug-assertions = false
+overflow-checks = false
+lto = "fat"
+panic = "abort"
+incremental = false
+codegen-units = 1
+
+[package.metadata.deb]
+section = "utils"
+assets = [
+  ["target/release/http-diff", "usr/bin/", "755"],
+  ["COPYING", "usr/share/doc/http-diff/", "644"],
+  ["LICENSE-MIT", "usr/share/doc/http-diff/", "644"],
+  ["UNLICENSE", "usr/share/doc/http-diff/", "644"],
+  ["README.md", "usr/share/doc/http-diff/README", "644"],
+  ["target/assets/http-diff.1", "usr/share/man/man1/http-diff.1", "644"],
+  ["target/assets/http-diff.bash", "usr/share/bash-completion/completions/http-diff", "644"],
+  ["target/assets/_http-diff", "usr/share/zsh/vendor-completions/_http-diff", "644"],
+  ["target/assets/http-diff.desktop", "usr/share/applications/http-diff.desktop", "644"],
+  ["assets/logo.png", "usr/share/pixmaps/http-diff.png", "644"],
+]
+extended-description = """\
+http-diff - CLI tool to verify consistency across web server versions. Ideal for large-scale refactors, sanity tests and maintaining data integrity across versions.
+"""
