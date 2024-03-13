@@ -4,6 +4,7 @@ CLI tool to verify consistency across web server versions. Ideal for large-scale
 
 Archives of precompiled binaries for http-diff are available for macOS and Linux on [every release](https://github.com/syte-ai/http-diff/releases).
 
+[![Tests](https://github.com/syte-ai/http-diff/workflows/tests/badge.svg)](https://github.com/syte-ai/http-diff)
 [![Crates.io](https://img.shields.io/crates/v/http-diff.svg)](https://crates.io/crates/http-diff)
 
 Dual-licensed under MIT or the [UNLICENSE](https://unlicense.org/).
