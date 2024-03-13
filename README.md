@@ -1,8 +1,10 @@
-HTTP DIFF
+## http-diff
 
----
+CLI tool to verify consistency across web server versions. Ideal for large-scale refactors, sanity tests and maintaining data integrity across versions.
 
-http-diff - CLI tool to verify consistency across web server versions. Ideal for large-scale refactors, sanity tests and maintaining data integrity across versions.
+Archives of precompiled binaries for http-diff are available for macOS and Linux on [every release](https://github.com/syte-ai/http-diff/releases).
+
+[![Crates.io](https://img.shields.io/crates/v/http-diff.svg)](https://crates.io/crates/http-diff)
 
 Dual-licensed under MIT or the [UNLICENSE](https://unlicense.org/).
 
@@ -76,7 +78,7 @@ this config will be translated to following:
   - `GET http://domain-a.com/users/123` with `{"cookie":"auth=secret","X-custom":"custom-header"}` in headers and compared with `GET http://stage.domain-a.com/users/123` with `{"X-custom":"custom-header"}` in headers.
   - `GET http://domain-a.com/users/444` with `{"cookie":"auth=secret","X-custom":"custom-header"}` in headers and compared with `GET http://stage.domain-a.com/users/444` with `{"X-custom":"custom-header"}` in headers.
 
-  Before comparing any response, response_processor will be applied. This endpoint has following preprocessor: `["jq", "del(.body.timestamp)"]`. Preprocessor is an external command that will be called with any arguments, before comparing responses. In this case after request to `http://domain-a.com/users/123` and request to `http://stage.domain-a.com/users/123` each response will passed to `jq 'del(.body.timestamp)'` which basically will remove the `timestamp` field from the body. `timestamp` field will be omitted from the compare process. `response_processor` can be any program, script or cli tool you can think of. Anything program that accepts `stdin`, and outputs to `stdout`. Output then will be compared. Not the original response.
+  Before comparing any response, `response_processor` will be applied. This endpoint has following preprocessor: `["jq", "del(.body.timestamp)"]`. Preprocessor is an external command that will be called with any arguments, before comparing responses. In this case after request to `http://domain-a.com/users/123` and request to `http://stage.domain-a.com/users/123` each response will passed to `jq 'del(.body.timestamp)'` which basically will remove the `timestamp` field from the body. `timestamp` field will be omitted from the compare process. `response_processor` can be any program, script or cli tool you can think of. Anything program that accepts `stdin`, and outputs to `stdout`. Output then will be compared. Not the original response.
 
 - Next endpoint (`/api/v1/products?omit_id=&include_empty=<include_empty>`) will be mapped to:
 
@@ -101,10 +103,13 @@ this config will be translated to following:
 
 - Latest rust installed when building from source
 
-## Running
+## Installation
+
+Archives are available on [every release](https://github.com/syte-ai/http-diff/releases) as well as `.deb` files for Linux.
+Autocomplete for arguments and man pages are included.
+
+## Developing
 
 - `cargo run` - for development
 - `cargo test` - to run tests
 - `cargo build -r` - to build in release mode
-- `./build-osx.sh` - to build binary for apple as a target on linux machine
-- `./build-deb.sh` - to build debian package .deb
