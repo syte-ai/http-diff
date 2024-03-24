@@ -3,7 +3,7 @@ use tracing::info;
 
 use crate::{
     actions::AppAction,
-    app_state::{AppState, Screen, SelectedJobState},
+    app_state::{AppState, Screen},
 };
 
 fn should_skip_action(app_has_exception: bool, action: &AppAction) -> bool {
@@ -19,10 +19,10 @@ fn should_skip_action(app_has_exception: bool, action: &AppAction) -> bool {
 
 pub fn update_state(
     app: &mut AppState,
-    action: &AppAction,
+    action: AppAction,
 ) -> Option<AppAction> {
     let skip_action =
-        should_skip_action(app.critical_exception.is_some(), action);
+        should_skip_action(app.critical_exception.is_some(), &action);
 
     if skip_action {
         info!(
@@ -37,7 +37,7 @@ pub fn update_state(
             None
         }
         AppAction::SetCriticalException(error) => {
-            app.show_exception_screen(error);
+            app.show_exception_screen(&error);
             None
         }
         AppAction::ShowHelp => {
@@ -92,16 +92,9 @@ pub fn update_state(
             app.upsert_jobs(updated_jobs);
             None
         }
-        AppAction::ShowJobInfo(job) => {
-            app.current_screen = Screen::JobInfo;
-            app.selected_job =
-                Some(SelectedJobState { job: job.clone(), tab_index: 0 });
-            app.select_row_by_job_name(&job.job_name);
-
-            Some(AppAction::ResetScrollState)
-        }
+        AppAction::ShowJobInfo(job) => app.set_selected_job(job),
         AppAction::SelectRowByJobName(job_name) => {
-            app.select_row_by_job_name(job_name);
+            app.select_row_by_job_name(&job_name);
             None
         }
         AppAction::CloseDiffsScreen => {
@@ -127,7 +120,7 @@ pub fn update_state(
             _ => None,
         },
         AppAction::SwitchDiffTab => {
-            app.go_to_next_diff_tab();
+            app.go_to_next_request_info_tab();
 
             Some(AppAction::ResetScrollState)
         }
@@ -136,7 +129,7 @@ pub fn update_state(
             None
         }
         AppAction::LoadingJobsProgress(payload) => {
-            app.on_load_jobs_progress_change(*payload)
+            app.on_load_jobs_progress_change(payload)
         }
         _ => None,
     }

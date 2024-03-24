@@ -128,6 +128,7 @@ pub fn test_convert_config_jobs() {
                     job_duration: None,
                     response: None,
                     diffs: Vec::new(),
+                    has_diffs: false,
                     headers: None,
                     body: None,
                 },
@@ -138,6 +139,7 @@ pub fn test_convert_config_jobs() {
                     job_duration: None,
                     response: None,
                     diffs: Vec::new(),
+                    has_diffs: false,
                     headers: None,
                     body: None,
                 },
@@ -148,6 +150,7 @@ pub fn test_convert_config_jobs() {
                     job_duration: None,
                     response: None,
                     diffs: Vec::new(),
+                    has_diffs: false,
                     headers: Some(HashMap::from([(
                         "cookie".to_owned(),
                         HeaderValue::String("auth=check".to_owned()),
@@ -172,6 +175,7 @@ pub fn test_convert_config_jobs() {
                     job_duration: None,
                     response: None,
                     diffs: Vec::new(),
+                    has_diffs: false,
                     headers: None,
                     body: None,
                 },
@@ -182,6 +186,7 @@ pub fn test_convert_config_jobs() {
                     job_duration: None,
                     response: None,
                     diffs: Vec::new(),
+                    has_diffs: false,
                     headers: None,
                     body: None,
                 },
@@ -195,6 +200,7 @@ pub fn test_convert_config_jobs() {
                     job_duration: None,
                     response: None,
                     diffs: Vec::new(),
+                    has_diffs: false,
                     headers: Some(HashMap::from([(
                         "cookie".to_owned(),
                         HeaderValue::String("auth=check".to_owned()),
@@ -219,6 +225,7 @@ pub fn test_convert_config_jobs() {
                     job_duration: None,
                     response: None,
                     diffs: Vec::new(),
+                    has_diffs: false,
                     headers: None,
                     body: None,
                 },
@@ -229,6 +236,7 @@ pub fn test_convert_config_jobs() {
                     job_duration: None,
                     response: None,
                     diffs: Vec::new(),
+                    has_diffs: false,
                     headers: None,
                     body: None,
                 },
@@ -242,6 +250,7 @@ pub fn test_convert_config_jobs() {
                     job_duration: None,
                     response: None,
                     diffs: Vec::new(),
+                    has_diffs: false,
                     headers: Some(HashMap::from([(
                         "cookie".to_owned(),
                         HeaderValue::String("auth=check".to_owned()),
@@ -266,6 +275,7 @@ pub fn test_convert_config_jobs() {
                     job_duration: None,
                     response: None,
                     diffs: Vec::new(),
+                    has_diffs: false,
                     headers: Some(HashMap::from([(
                         "X-test".to_owned(),
                         HeaderValue::String("test=true".to_owned()),
@@ -279,6 +289,7 @@ pub fn test_convert_config_jobs() {
                     job_duration: None,
                     response: None,
                     diffs: Vec::new(),
+                    has_diffs: false,
                     headers: Some(HashMap::from([(
                         "X-test".to_owned(),
                         HeaderValue::String("test=true".to_owned()),
@@ -295,6 +306,7 @@ pub fn test_convert_config_jobs() {
                     job_duration: None,
                     response: None,
                     diffs: Vec::new(),
+                    has_diffs: false,
                     headers: Some(HashMap::from([
                         (
                             "X-test".to_owned(),
@@ -325,6 +337,7 @@ pub fn test_convert_config_jobs() {
                     job_duration: None,
                     response: None,
                     diffs: Vec::new(),
+                    has_diffs: false,
                     headers: Some(HashMap::from([(
                         "X-test".to_owned(),
                         HeaderValue::String("test=true".to_owned()),
@@ -338,6 +351,7 @@ pub fn test_convert_config_jobs() {
                     job_duration: None,
                     response: None,
                     diffs: Vec::new(),
+                    has_diffs: false,
                     headers: Some(HashMap::from([(
                         "X-test".to_owned(),
                         HeaderValue::String("test=true".to_owned()),
@@ -354,6 +368,7 @@ pub fn test_convert_config_jobs() {
                     job_duration: None,
                     response: None,
                     diffs: Vec::new(),
+                    has_diffs: false,
                     headers: Some(HashMap::from([
                         (
                             "X-test".to_owned(),

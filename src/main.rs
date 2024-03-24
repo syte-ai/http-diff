@@ -220,7 +220,7 @@ async fn run_app<B: Backend>(terminal: &mut Terminal<B>) -> Result<()> {
                     let mut current_action = Some(action);
 
                     while let Some(a) = current_action {
-                        current_action = update_state(&mut app, &a);
+                        current_action = update_state(&mut app, a);
                     }
                 }
                 Err(_) => {

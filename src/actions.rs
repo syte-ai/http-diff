@@ -7,11 +7,7 @@ use similar::ChangeTag;
 
 use crate::{
     app_state::{AppState, Screen},
-    http_diff::{
-        config::Configuration,
-        job::JobDTO,
-        types::{AppError, JobStatus},
-    },
+    http_diff::{config::Configuration, job::JobDTO, types::AppError},
     notification::{Notification, NotificationType},
 };
 
@@ -84,12 +80,7 @@ pub fn event_to_app_action(
                         None => None,
                     },
                     KeyCode::Enter => match app.get_current_job() {
-                        Some(job) => match job.status {
-                            JobStatus::Failed => {
-                                Some(AppAction::ShowJobInfo(job))
-                            }
-                            _ => None,
-                        },
+                        Some(job) => Some(AppAction::ShowJobInfo(job)),
                         None => None,
                     },
                     KeyCode::Up => match app.current_screen {
