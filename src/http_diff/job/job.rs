@@ -112,13 +112,13 @@ impl Job {
         self.status = JobStatus::Running;
         self.publish_self();
 
-        let handles = self.requests.iter_mut().map(|job| {
-            let mut job = job.clone();
+        let handles = self.requests.iter_mut().map(|request| {
+            let mut request = request.clone();
 
             tokio::spawn(async move {
-                job.start().await;
+                request.start().await;
 
-                job
+                request
             })
         });
 
@@ -341,15 +341,8 @@ impl Job {
     }
 
     pub fn calculate_job_diffs(&mut self) -> Result<(), AppError> {
-        let first_response = match self.requests.get(0) {
-            Some(job) => match &job.response {
-                Some(res) => res,
-                None => {
-                    return Err(AppError::ValidationError(
-                        "missing first job response".into(),
-                    ))
-                }
-            },
+        let first_request = match self.requests.first_mut() {
+            Some(request) => request,
             None => {
                 return Err(AppError::ValidationError(
                     "missing first job".into(),
@@ -357,77 +350,59 @@ impl Job {
             }
         };
 
-        let mut old = match serde_json::to_string_pretty(&first_response) {
-            Ok(res) => res,
-            Err(error) => {
-                return Err(AppError::ValidationError(format!(
-                    "Failed to stringify the response for first job, error: {}",
-                    error
-                )));
+        let first_response = match &first_request.response {
+            Some(res) => res,
+            None => {
+                return Err(AppError::ValidationError(
+                    "missing first job response".into(),
+                ))
             }
         };
 
-        match &self.response_processor {
-            Some(command) => {
-                old = Job::execute_external_process(command, Some(&old))?;
-            }
-            None => {}
-        };
+        let old = Job::apply_response_processor(
+            &self.response_processor,
+            &first_response,
+        )?;
 
-        for job in self.requests.iter_mut() {
-            let second_response = match &job.response {
+        let first_response_lines = old.lines();
+
+        let (lines_count, _) = first_response_lines.size_hint();
+
+        let mut first_request_diffs: Vec<(ChangeTag, String)> =
+            Vec::with_capacity(lines_count);
+
+        for line in first_response_lines {
+            first_request_diffs.push((ChangeTag::Equal, line.to_string()));
+        }
+
+        first_request.set_diffs_and_calculate_status(first_request_diffs);
+
+        for request in self.requests.iter_mut().skip(1) {
+            let old = old.clone();
+
+            let second_response = match &request.response {
                 Some(res) => res,
                 None => {
                     return Err(AppError::ValidationError(format!(
                         "missing response for job: {}",
-                        job.uri.to_string()
+                        request.uri.to_string()
                     )))
                 }
             };
 
-            let mut new = match serde_json::to_string_pretty(&second_response)
-            {
-                Ok(res) => res,
-                Err(error) => {
-                    return Err(AppError::ValidationError(format!(
-                        "Failed to stringify the response for second job, error: {}",
-                        error
-                    )));
-                }
-            };
-
-            match &self.response_processor {
-                Some(command) => {
-                    new = Job::execute_external_process(command, Some(&new))?;
-                }
-                None => {}
-            };
+            let new = Job::apply_response_processor(
+                &self.response_processor,
+                &second_response,
+            )?;
 
             let diff = TextDiff::from_lines(&old, &new);
 
-            let has_diffs = diff
-                .iter_all_changes()
-                .any(|change| change.tag() != ChangeTag::Equal);
-
-            job.diffs = diff
+            let diffs = diff
                 .iter_all_changes()
                 .map(|change| (change.tag(), change.to_string()))
                 .collect();
 
-            if has_diffs {
-                job.status = JobStatus::Failed;
-            } else {
-                let request_failed = match &job.response {
-                    Some(ResponseVariant::Fail(_)) => true,
-                    _ => false,
-                };
-
-                job.status = if request_failed {
-                    JobStatus::Failed
-                } else {
-                    JobStatus::Finished
-                };
-            }
+            request.set_diffs_and_calculate_status(diffs);
         }
 
         if self.requests.iter().any(|job| job.status == JobStatus::Failed) {
@@ -437,6 +412,34 @@ impl Job {
         }
 
         Ok(())
+    }
+
+    pub fn apply_response_processor(
+        response_processor: &Option<Vec<String>>,
+        response: &ResponseVariant,
+    ) -> Result<String, AppError> {
+        let stringified_response = match serde_json::to_string_pretty(response)
+        {
+            Ok(res) => res,
+            Err(error) => {
+                return Err(AppError::ValidationError(format!(
+                    "Failed to stringify the response, error: {}",
+                    error
+                )));
+            }
+        };
+
+        match (&response_processor, response) {
+            (Some(command), ResponseVariant::Success(_)) => {
+                return Job::execute_external_process(
+                    command,
+                    Some(&stringified_response),
+                )
+            }
+            _ => {}
+        };
+
+        Ok(stringified_response)
     }
 }
 

@@ -37,6 +37,7 @@ pub struct Request {
     pub job_duration: Option<Duration>,
     pub response: Option<ResponseVariant>,
     pub diffs: Vec<(ChangeTag, String)>,
+    pub has_diffs: bool,
 }
 
 impl Request {
@@ -55,6 +56,7 @@ impl Request {
             diffs: Vec::new(),
             headers,
             body,
+            has_diffs: false,
         }
     }
 
@@ -123,6 +125,32 @@ impl Request {
 
         self.headers = dto.headers;
         self.http_method = dto.http_method;
+    }
+
+    pub fn set_diffs_and_calculate_status(
+        &mut self,
+        diffs: Vec<(ChangeTag, String)>,
+    ) {
+        let has_diffs = diffs.iter().any(|(tag, _)| tag != &ChangeTag::Equal);
+
+        self.has_diffs = has_diffs;
+
+        self.diffs = diffs;
+
+        if has_diffs {
+            self.status = JobStatus::Failed;
+        } else {
+            let request_failed = match &self.response {
+                Some(ResponseVariant::Fail(_)) => true,
+                _ => false,
+            };
+
+            self.status = if request_failed {
+                JobStatus::Failed
+            } else {
+                JobStatus::Finished
+            };
+        }
     }
 
     pub fn get_status_text(&self) -> String {

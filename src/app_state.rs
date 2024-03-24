@@ -4,22 +4,24 @@ use crate::{
         config::{Configuration, DomainVariant},
         job::JobDTO,
         request::ResponseVariant,
-        types::AppError,
+        types::{AppError, JobStatus},
     },
     notification::{Notification, NotificationType},
     ui::{
+        selected_job::map_request_to_lines,
         theme::{get_dark_theme, get_light_theme, Theme, ThemeType},
         top::LOGO,
     },
 };
 use chrono::Local;
-use ratatui::widgets::*;
+use ratatui::{text::Line, widgets::*};
 use similar::ChangeTag;
 use std::{
     cmp::{max, min},
     path::{Path, PathBuf},
     time::{Duration, Instant},
 };
+use tracing::warn;
 
 pub enum Screen {
     Home,
@@ -30,6 +32,7 @@ pub enum Screen {
 pub struct SelectedJobState {
     pub tab_index: usize,
     pub job: JobDTO,
+    pub current_tabs_content: Vec<Line<'static>>,
 }
 
 pub struct AppState {
@@ -139,6 +142,42 @@ impl AppState {
         }
     }
 
+    pub fn set_selected_job(&mut self, mut job: JobDTO) -> Option<AppAction> {
+        if job.status == JobStatus::Pending || job.status == JobStatus::Running
+        {
+            let notification = Notification::new(
+                "pending-job-info-error",
+                "The job is still executing. Please, wait",
+                Some(Duration::from_secs(2)),
+                NotificationType::Warning,
+            );
+
+            return Some(AppAction::SetNotification(notification));
+        };
+
+        if job.requests.is_empty() {
+            warn!("set_selected_job failed as job doesn't have any requests: {:?}", job);
+            return None;
+        }
+
+        self.current_screen = Screen::JobInfo;
+        self.select_row_by_job_name(&job.job_name);
+
+        let tab_index = 0;
+
+        job.requests.sort_unstable_by(|a, b| b.has_diffs.cmp(&a.has_diffs));
+
+        let current_tabs_content = map_request_to_lines(
+            &self.theme,
+            job.requests.get(tab_index).unwrap(),
+        );
+
+        self.selected_job =
+            Some(SelectedJobState { job, tab_index, current_tabs_content });
+
+        Some(AppAction::ResetScrollState)
+    }
+
     pub fn get_current_job(&self) -> Option<JobDTO> {
         match self.state.selected() {
             Some(i) => match self.jobs.get(i) {
@@ -204,19 +243,19 @@ impl AppState {
         failed_jobs
     }
 
-    pub fn upsert_jobs(&mut self, updated_jobs: &Vec<JobDTO>) {
+    pub fn upsert_jobs(&mut self, updated_jobs: Vec<JobDTO>) {
         for updated_job in updated_jobs {
+            self.append_job_content_length_vec(&updated_job);
+
             if let Some(existing_job_dto) = self
                 .jobs
                 .iter_mut()
                 .find(|dto| &dto.job_name == &updated_job.job_name)
             {
-                *existing_job_dto = updated_job.clone();
+                *existing_job_dto = updated_job;
             } else {
-                self.jobs.push(updated_job.clone());
+                self.jobs.push(updated_job);
             }
-
-            self.append_job_content_length_vec(&updated_job);
         }
     }
 
@@ -285,15 +324,15 @@ impl AppState {
         }
     }
 
-    pub fn set_notification(&mut self, notification: &Notification) {
-        self.notification = Some(notification.clone())
+    pub fn set_notification(&mut self, notification: Notification) {
+        self.notification = Some(notification)
     }
 
     pub fn clear_notification(&mut self) {
         self.notification = None;
     }
 
-    pub fn on_configuration_load(&mut self, configuration: &Configuration) {
+    pub fn on_configuration_load(&mut self, configuration: Configuration) {
         self.domains = configuration
             .domains
             .iter()
@@ -317,18 +356,24 @@ impl AppState {
     ) -> Option<AppAction> {
         let notification_id = "jobs-progress-change";
 
-        let should_issue_notification = self.notification.as_ref().is_none()
-            || self.notification.as_ref().is_some_and(|notification| {
-                notification.id == notification_id
-            });
+        let is_notification_displayed_currently =
+            self.notification.as_ref().is_some();
+
+        let are_sizes_different = current != total;
+
+        let displayed_notification_id_matches = self
+            .notification
+            .as_ref()
+            .is_some_and(|notification| notification.id == notification_id);
+
+        let should_issue_notification = (!is_notification_displayed_currently
+            && are_sizes_different)
+            || displayed_notification_id_matches;
 
         if should_issue_notification {
             let notification = Notification::new(
                 notification_id,
-                &format!(
-                    "Mapped {} requests out of {}. Please wait",
-                    current, total
-                ),
+                &format!("Mapped {} out of {} requests.", current, total),
                 Some(Duration::from_secs(2)),
                 NotificationType::Success,
             );
@@ -405,7 +450,7 @@ impl AppState {
             Some(state) => match state
                 .job
                 .requests
-                .get(1)
+                .get(state.tab_index)
                 .unwrap()
                 .diffs
                 .is_empty()
@@ -415,9 +460,20 @@ impl AppState {
                         .find_next_diff_group(
                             min(
                                 self.vertical_scroll.saturating_add(1),
-                                state.job.requests.get(1).unwrap().diffs.len(),
+                                state
+                                    .job
+                                    .requests
+                                    .get(state.tab_index)
+                                    .unwrap()
+                                    .diffs
+                                    .len(),
                             ),
-                            &state.job.requests.get(1).unwrap().diffs,
+                            &state
+                                .job
+                                .requests
+                                .get(state.tab_index)
+                                .unwrap()
+                                .diffs,
                             false,
                         );
 
@@ -437,12 +493,24 @@ impl AppState {
     pub fn go_to_prev_diff(&mut self) {
         match &self.selected_job {
             Some(state) => {
-                match state.job.requests.get(1).unwrap().diffs.is_empty() {
+                match state
+                    .job
+                    .requests
+                    .get(state.tab_index)
+                    .unwrap()
+                    .diffs
+                    .is_empty()
+                {
                     false => {
                         let prev_diff_group: Option<usize> = self
                             .find_next_diff_group(
                                 max(self.vertical_scroll.saturating_sub(1), 0),
-                                &state.job.requests.get(1).unwrap().diffs,
+                                &state
+                                    .job
+                                    .requests
+                                    .get(state.tab_index)
+                                    .unwrap()
+                                    .diffs,
                                 true,
                             );
 
@@ -491,11 +559,25 @@ impl AppState {
         self.should_show_help = false
     }
 
-    pub fn go_to_next_diff_tab(&mut self) {
-        if let Some(state) = &mut self.selected_job {
-            let tabs_count = state.job.get_requests_with_diffs().len();
-
-            state.tab_index = (state.tab_index + 1) % tabs_count;
+    pub fn go_to_next_request_info_tab(&mut self) {
+        if self.selected_job.is_none() {
+            return;
         }
+
+        let selected_job_state = self.selected_job.as_mut().unwrap();
+
+        let tabs_count = selected_job_state.job.requests.len();
+
+        selected_job_state.tab_index =
+            (selected_job_state.tab_index + 1) % tabs_count;
+
+        selected_job_state.current_tabs_content = map_request_to_lines(
+            &self.theme,
+            selected_job_state
+                .job
+                .requests
+                .get(selected_job_state.tab_index)
+                .unwrap(),
+        )
     }
 }

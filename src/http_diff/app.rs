@@ -19,6 +19,8 @@ use super::{
     utils::{get_random_emoji, prettify_duration, EmojiType},
 };
 
+const MAX_RETRY_COUNT: u32 = 10;
+
 #[derive(Clone, Debug)]
 enum JobEvent {
     Restart(String),
@@ -89,6 +91,8 @@ impl App {
                 let mut should_run = true;
                 let mut result: Option<Result<Job, AppError>> = None;
 
+                let mut retry_count = 0;
+
                 while should_run {
                     select! {
                         _ = async {
@@ -109,7 +113,9 @@ impl App {
                                         _ => {}
                                     }
                                  }
-                            } => {}
+                            } => {
+                                retry_count = 0;
+                            }
 
                         job = async {
                             job_ref.start().await?;
@@ -137,7 +143,18 @@ impl App {
 
                             Ok(job_ref.clone())
                         } => {
-                            result = Some(job)
+                            match job {
+                                Err(_) => {
+                                    if retry_count > MAX_RETRY_COUNT {
+                                        should_run = false;
+                                    }
+                                    retry_count += 1;
+                                }
+                                _=> {
+                                }
+                            }
+
+                            result = Some(job);
                         }
                     };
                 }
