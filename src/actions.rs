@@ -32,7 +32,6 @@ pub enum AppAction {
 
     StartAllJobs,
     StartOneJob(String),
-    ResetScrollState,
 
     ShowHelp,
     CloseHelp,
@@ -41,9 +40,9 @@ pub enum AppAction {
     SelectPreviousRow,
     SelectNextRow,
 
-    SwitchDiffTab,
-    ScrollDiffsUp,
-    ScrollDiffsDown,
+    SwitchTab,
+    ScrollUp,
+    ScrollDown,
     GoToNextDiff,
     GoToPreviousDiff,
 
@@ -55,7 +54,7 @@ pub enum AppAction {
     JobsUpdated(Vec<JobDTO>),
 
     ShowJobInfo(JobDTO),
-    CloseDiffsScreen,
+    CloseJobInfoScreen,
 
     SaveFailedJobs(Vec<JobDTO>),
     SaveCurrentJob(JobDTO),
@@ -106,9 +105,7 @@ pub fn event_to_app_action(
                             KeyModifiers::SHIFT => {
                                 Some(AppAction::GoToPreviousDiff)
                             }
-                            KeyModifiers::NONE => {
-                                Some(AppAction::ScrollDiffsUp)
-                            }
+                            KeyModifiers::NONE => Some(AppAction::ScrollUp),
                             _ => None,
                         },
                         _ => None,
@@ -136,9 +133,7 @@ pub fn event_to_app_action(
                             KeyModifiers::SHIFT => {
                                 Some(AppAction::GoToNextDiff)
                             }
-                            KeyModifiers::NONE => {
-                                Some(AppAction::ScrollDiffsDown)
-                            }
+                            KeyModifiers::NONE => Some(AppAction::ScrollDown),
                             _ => None,
                         },
                         _ => None,
@@ -178,7 +173,7 @@ pub fn event_to_app_action(
                         _ => None,
                     },
                     KeyCode::Tab => match app.current_screen {
-                        Screen::JobInfo => Some(AppAction::SwitchDiffTab),
+                        Screen::JobInfo => Some(AppAction::SwitchTab),
                         _ => None,
                     },
                     KeyCode::Esc => {
@@ -187,7 +182,7 @@ pub fn event_to_app_action(
                         } else {
                             match app.selected_job {
                                 None => Some(AppAction::DismissNotification),
-                                _ => Some(AppAction::CloseDiffsScreen),
+                                _ => Some(AppAction::CloseJobInfoScreen),
                             }
                         }
                     }
@@ -220,12 +215,12 @@ pub fn event_to_app_action(
         Event::Mouse(mouse_event) => match mouse_event.kind {
             MouseEventKind::ScrollUp => match app.current_screen {
                 Screen::Home => Some(AppAction::SelectPreviousRow),
-                Screen::JobInfo => Some(AppAction::ScrollDiffsUp),
+                Screen::JobInfo => Some(AppAction::ScrollUp),
                 _ => None,
             },
             MouseEventKind::ScrollDown => match app.current_screen {
                 Screen::Home => Some(AppAction::SelectNextRow),
-                Screen::JobInfo => Some(AppAction::ScrollDiffsDown),
+                Screen::JobInfo => Some(AppAction::ScrollDown),
                 _ => None,
             },
             _ => None,
