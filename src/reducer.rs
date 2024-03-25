@@ -1,4 +1,3 @@
-use ratatui::widgets::ScrollbarState;
 use tracing::info;
 
 use crate::{
@@ -56,18 +55,8 @@ pub fn update_state(
             app.select_next_row();
             None
         }
-        AppAction::ScrollDiffsUp => {
-            app.vertical_scroll = app.vertical_scroll.saturating_sub(5);
-            app.vertical_scroll_state =
-                app.vertical_scroll_state.position(app.vertical_scroll);
-            None
-        }
-        AppAction::ScrollDiffsDown => {
-            app.vertical_scroll = app.vertical_scroll.saturating_add(5);
-            app.vertical_scroll_state =
-                app.vertical_scroll_state.position(app.vertical_scroll);
-            None
-        }
+        AppAction::ScrollUp => app.scroll_up(),
+        AppAction::ScrollDown => app.scroll_down(),
         AppAction::GoToNextDiff => {
             app.go_to_next_diff();
             None
@@ -97,32 +86,27 @@ pub fn update_state(
             app.select_row_by_job_name(&job_name);
             None
         }
-        AppAction::CloseDiffsScreen => {
+        AppAction::CloseJobInfoScreen => {
             app.selected_job = None;
             app.current_screen = Screen::Home;
-            Some(AppAction::ResetScrollState)
-        }
-        AppAction::ResetScrollState => {
-            app.vertical_scroll = 0;
-            app.vertical_scroll_state = ScrollbarState::default();
             None
         }
         AppAction::StartAllJobs => {
             app.reset_jobs_state();
 
             match app.current_screen {
-                Screen::JobInfo => Some(AppAction::CloseDiffsScreen),
+                Screen::JobInfo => Some(AppAction::CloseJobInfoScreen),
                 _ => None,
             }
         }
         AppAction::StartOneJob(_) => match app.current_screen {
-            Screen::JobInfo => Some(AppAction::CloseDiffsScreen),
+            Screen::JobInfo => Some(AppAction::CloseJobInfoScreen),
             _ => None,
         },
-        AppAction::SwitchDiffTab => {
+        AppAction::SwitchTab => {
             app.go_to_next_request_info_tab();
 
-            Some(AppAction::ResetScrollState)
+            None
         }
         AppAction::ConfigurationLoaded(configuration) => {
             app.on_configuration_load(configuration);

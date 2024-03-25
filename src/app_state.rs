@@ -8,13 +8,13 @@ use crate::{
     },
     notification::{Notification, NotificationType},
     ui::{
-        selected_job::map_request_to_lines,
+        selected_job::SelectedJobState,
         theme::{get_dark_theme, get_light_theme, Theme, ThemeType},
         top::LOGO,
     },
 };
 use chrono::Local;
-use ratatui::{text::Line, widgets::*};
+use ratatui::widgets::*;
 use similar::ChangeTag;
 use std::{
     cmp::{max, min},
@@ -29,12 +29,6 @@ pub enum Screen {
     Exception,
 }
 
-pub struct SelectedJobState {
-    pub tab_index: usize,
-    pub job: JobDTO,
-    pub current_tabs_content: Vec<Line<'static>>,
-}
-
 pub struct AppState {
     pub output_directory: PathBuf,
     pub state: TableState,
@@ -45,8 +39,6 @@ pub struct AppState {
     pub content_length_downloaded_buffer: Vec<u64>,
     pub content_length_downloaded: Vec<u64>,
     pub notification: Option<Notification>,
-    pub vertical_scroll_state: ScrollbarState,
-    pub vertical_scroll: usize,
     pub selected_job: Option<SelectedJobState>,
     pub should_show_help: bool,
     pub highlight_logo_row_index: usize,
@@ -76,8 +68,7 @@ impl AppState {
             last_tick: Instant::now(),
             notification: None,
             selected_job: None,
-            vertical_scroll_state: ScrollbarState::default(),
-            vertical_scroll: 0,
+
             should_show_help: false,
             should_quit: false,
             highlight_logo_row_index: 0,
@@ -167,15 +158,9 @@ impl AppState {
 
         job.requests.sort_unstable_by(|a, b| b.has_diffs.cmp(&a.has_diffs));
 
-        let current_tabs_content = map_request_to_lines(
-            &self.theme,
-            job.requests.get(tab_index).unwrap(),
-        );
+        self.selected_job = Some(SelectedJobState::new(job, tab_index));
 
-        self.selected_job =
-            Some(SelectedJobState { job, tab_index, current_tabs_content });
-
-        Some(AppAction::ResetScrollState)
+        None
     }
 
     pub fn get_current_job(&self) -> Option<JobDTO> {
@@ -389,19 +374,14 @@ impl AppState {
         self.selected_job = None;
         self.state = TableState::default();
         self.jobs = Vec::new();
-        self.vertical_scroll_state = ScrollbarState::default();
-        self.vertical_scroll = 0;
         self.current_screen = Screen::Home;
     }
 
-    pub fn reset_selected_job_diffs(&mut self) {
+    pub fn reset_selected_job(&mut self) {
         self.selected_job = None;
-        self.vertical_scroll_state = ScrollbarState::default();
-        self.vertical_scroll = 0;
     }
 
     pub fn find_next_diff_group(
-        &self,
         start_index: usize,
         diffs: &Vec<(ChangeTag, String)>,
         is_reversed_search: bool,
@@ -446,7 +426,7 @@ impl AppState {
     }
 
     pub fn go_to_next_diff(&mut self) {
-        match &self.selected_job {
+        match self.selected_job.as_mut() {
             Some(state) => match state
                 .job
                 .requests
@@ -456,10 +436,10 @@ impl AppState {
                 .is_empty()
             {
                 false => {
-                    let next_diff_group: Option<usize> = self
-                        .find_next_diff_group(
+                    let next_diff_group: Option<usize> =
+                        AppState::find_next_diff_group(
                             min(
-                                self.vertical_scroll.saturating_add(1),
+                                state.vertical_scroll.saturating_add(1),
                                 state
                                     .job
                                     .requests
@@ -478,10 +458,11 @@ impl AppState {
                         );
 
                     if let Some(next_group_index) = next_diff_group {
-                        self.vertical_scroll = next_group_index;
-                        self.vertical_scroll_state = self
+                        state.vertical_scroll = next_group_index;
+
+                        state.vertical_scroll_state = state
                             .vertical_scroll_state
-                            .position(self.vertical_scroll);
+                            .position(state.vertical_scroll);
                     };
                 }
                 true => {}
@@ -491,7 +472,7 @@ impl AppState {
     }
 
     pub fn go_to_prev_diff(&mut self) {
-        match &self.selected_job {
+        match self.selected_job.as_mut() {
             Some(state) => {
                 match state
                     .job
@@ -502,9 +483,12 @@ impl AppState {
                     .is_empty()
                 {
                     false => {
-                        let prev_diff_group: Option<usize> = self
-                            .find_next_diff_group(
-                                max(self.vertical_scroll.saturating_sub(1), 0),
+                        let prev_diff_group: Option<usize> =
+                            AppState::find_next_diff_group(
+                                max(
+                                    state.vertical_scroll.saturating_sub(1),
+                                    0,
+                                ),
                                 &state
                                     .job
                                     .requests
@@ -515,10 +499,11 @@ impl AppState {
                             );
 
                         if let Some(prev_group_index) = prev_diff_group {
-                            self.vertical_scroll = prev_group_index;
-                            self.vertical_scroll_state = self
+                            state.vertical_scroll = prev_group_index;
+
+                            state.vertical_scroll_state = state
                                 .vertical_scroll_state
-                                .position(self.vertical_scroll);
+                                .position(state.vertical_scroll);
                         };
                     }
                     true => {}
@@ -571,13 +556,25 @@ impl AppState {
         selected_job_state.tab_index =
             (selected_job_state.tab_index + 1) % tabs_count;
 
-        selected_job_state.current_tabs_content = map_request_to_lines(
-            &self.theme,
-            selected_job_state
-                .job
-                .requests
-                .get(selected_job_state.tab_index)
-                .unwrap(),
-        )
+        selected_job_state.vertical_scroll = 0;
+        selected_job_state.vertical_scroll_state = ScrollbarState::default();
+    }
+
+    pub fn scroll_up(&mut self) -> Option<AppAction> {
+        match self.selected_job.as_mut() {
+            Some(state) => state.scroll_up(),
+            None => {}
+        }
+
+        None
+    }
+
+    pub fn scroll_down(&mut self) -> Option<AppAction> {
+        match self.selected_job.as_mut() {
+            Some(state) => state.scroll_down(),
+            None => {}
+        }
+
+        None
     }
 }
