@@ -72,7 +72,7 @@ pub fn render_help_popup(frame: &mut Frame, app: &mut AppState) {
                     ));
                 }
                 Screen::Home => text.push(Line::from(
-                    "- `Enter` to show the diff of the failed job"
+                    "- `Enter` to show the response of the selected job"
                         .italic()
                         .fg(app.theme.white),
                 )),
