@@ -44,12 +44,8 @@ pub fn ui(f: &mut Frame, app: &mut AppState) {
 
     match app.current_screen {
         Screen::Home => {}
-        Screen::JobInfo => {
-            render_selected_job(f, app);
-        }
-        Screen::Exception => {
-            render_exception(f, app);
-        }
+        Screen::JobInfo => render_selected_job(f, app),
+        Screen::Exception => render_exception(f, app),
     }
 
     render_help_popup(f, app);

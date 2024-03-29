@@ -1,6 +1,6 @@
 use ratatui::{prelude::*, widgets::*};
 
-use crate::{app_state::AppState, notification::NotificationType};
+use crate::app_state::AppState;
 
 fn notification_rect(r: Rect) -> Rect {
     let popup_vertical_layout = Layout::default()
@@ -64,11 +64,17 @@ pub fn render_notification(frame: &mut Frame, app: &mut AppState) {
                 }
             });
 
-        let paragraph =
-            Paragraph::new(notification.body.as_str().fg(app.theme.black))
-                .wrap(Wrap { trim: true })
-                .alignment(Alignment::Left)
-                .block(block);
+        let body: Vec<Line<'_>> = notification
+            .body
+            .as_str()
+            .lines()
+            .map(|line| Line::from(line.fg(app.theme.black)))
+            .collect();
+
+        let paragraph = Paragraph::new(body)
+            .wrap(Wrap { trim: true })
+            .alignment(Alignment::Left)
+            .block(block);
 
         if let Some(percentage) = notification.get_show_percentage_left() {
             let gauge = Gauge::default()
@@ -88,5 +94,66 @@ pub fn render_notification(frame: &mut Frame, app: &mut AppState) {
         }
 
         frame.render_widget(paragraph, popup_layout[0]);
+    }
+}
+
+use std::time::{Duration, Instant};
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum NotificationId {
+    NoFailedJobs,
+    SavedJob,
+    SavedJobs,
+    FailedToSaveJobs,
+    PendingJobInfoError,
+    JobProgressChange,
+    GenerateDefaultConfig,
+    GenerateDefaultConfigFailed,
+    AllRequestsFinishedWithoutFails,
+    ReloadingConfiguration,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum NotificationType {
+    Success,
+    Warning,
+    Error,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Notification {
+    pub id: NotificationId,
+    pub body: String,
+    pub expire_duration: Option<Duration>,
+    pub started_at: Instant,
+    pub r#type: NotificationType,
+}
+
+impl Notification {
+    pub fn new(
+        id: NotificationId,
+        body: &str,
+        expire_duration: Option<Duration>,
+        r#type: NotificationType,
+    ) -> Self {
+        Self {
+            id,
+            expire_duration,
+            body: body.to_owned(),
+            started_at: Instant::now(),
+            r#type,
+        }
+    }
+
+    pub fn get_show_percentage_left(&self) -> Option<u64> {
+        if let Some(expire) = self.expire_duration {
+            let now = Instant::now();
+
+            let left = now - self.started_at;
+
+            return Some(100 - (left.as_secs() * 100) / expire.as_secs());
+        };
+
+        None
     }
 }

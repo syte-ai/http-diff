@@ -28,7 +28,7 @@ pub fn render_help_popup(frame: &mut Frame, app: &mut AppState) {
                 Line::from("- `r` to restart selected job".italic().fg(app.theme.white)),
                 Line::from(
                     "- `Shift + r` to restart all jobs"
-                        .italic()
+                    .italic()
                         .fg(app.theme.white),
                 ),
                 Line::from("- `Esc` to close windows".italic().fg(app.theme.white)),
@@ -36,7 +36,8 @@ pub fn render_help_popup(frame: &mut Frame, app: &mut AppState) {
                     "- `⬆` and `⬇` keys to navigate"
                         .italic()
                         .fg(app.theme.white),
-                ),
+                    ),
+                Line::from("- `g` to generate default configuration file".italic().fg(app.theme.white)),
             ];
 
             match app.current_screen {

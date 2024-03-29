@@ -11,7 +11,11 @@ fn should_skip_action(app_has_exception: bool, action: &AppAction) -> bool {
     }
 
     match action {
-        AppAction::Quit | AppAction::ConfigurationLoaded(_) => false,
+        AppAction::Quit
+        | AppAction::ConfigurationLoaded(_)
+        | AppAction::GenerateDefaultConfiguration
+        | AppAction::DismissNotification
+        | AppAction::SetNotification(_) => false,
         _ => true,
     }
 }
@@ -36,7 +40,7 @@ pub fn update_state(
             None
         }
         AppAction::SetCriticalException(error) => {
-            app.show_exception_screen(&error);
+            app.show_exception_screen(error);
             None
         }
         AppAction::ShowHelp => {
@@ -115,6 +119,7 @@ pub fn update_state(
         AppAction::LoadingJobsProgress(payload) => {
             app.on_load_jobs_progress_change(payload)
         }
+        AppAction::GenerateDefaultConfiguration => app.save_default_config(),
         _ => None,
     }
 }

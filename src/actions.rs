@@ -8,7 +8,7 @@ use similar::ChangeTag;
 use crate::{
     app_state::{AppState, Screen},
     http_diff::{config::Configuration, job::JobDTO, types::AppError},
-    notification::{Notification, NotificationType},
+    ui::notification::{Notification, NotificationId, NotificationType},
 };
 
 #[derive(Debug, Clone)]
@@ -25,6 +25,7 @@ pub enum AppAction {
     ReloadConfigurationFile(String),
     TryLoadConfigurationFile(String),
     ConfigurationLoaded(Configuration),
+    GenerateDefaultConfiguration,
 
     LoadingJobsProgress((usize, usize)),
 
@@ -192,7 +193,7 @@ pub fn event_to_app_action(
                         if failed_jobs.is_empty() {
                             Some(AppAction::SetNotification(
                                 Notification::new(
-                                    "no-failed-jobs-to-save",
+                                    NotificationId::NoFailedJobs,
                                     "There are no failed jobs to save",
                                     Some(Duration::from_secs(5)),
                                     NotificationType::Warning,
@@ -206,6 +207,9 @@ pub fn event_to_app_action(
                         Some(job) => Some(AppAction::SaveCurrentJob(job)),
                         None => None,
                     },
+                    KeyCode::Char('g') => {
+                        Some(AppAction::GenerateDefaultConfiguration)
+                    }
                     _ => None,
                 }
             } else {

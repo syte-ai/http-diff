@@ -34,7 +34,6 @@ pub mod actions;
 pub mod app_state;
 pub mod cli;
 pub mod http_diff;
-pub mod notification;
 pub mod reducer;
 pub mod ui;
 pub mod worker;
@@ -81,6 +80,28 @@ fn reset_terminal(
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
+    let args = match Arguments::try_parse() {
+        Err(err) => {
+            println!("{err}");
+            return Ok(());
+        }
+        Ok(args) => args,
+    };
+
+    if args.enable_log {
+        let _ = tracing_subscriber::registry()
+            .with(
+                fmt::layer()
+                    .with_writer(Arc::new(File::create("./.log")?))
+                    .json()
+                    .with_filter(
+                        Targets::default()
+                            .with_target("http_diff", LevelFilter::DEBUG),
+                    ),
+            )
+            .try_init();
+    }
+
     let mut terminal = init_terminal()?;
 
     let res = run_app(&mut terminal).await;
@@ -96,20 +117,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
 async fn run_app<B: Backend>(terminal: &mut Terminal<B>) -> Result<()> {
     let args = Arguments::try_parse()?;
-
-    if args.enable_log {
-        let _ = tracing_subscriber::registry()
-            .with(
-                fmt::layer()
-                    .with_writer(Arc::new(File::create("./.log")?))
-                    .json()
-                    .with_filter(
-                        Targets::default()
-                            .with_target("http_diff", LevelFilter::DEBUG),
-                    ),
-            )
-            .try_init();
-    }
 
     let output_directory = Path::new(&args.output_directory);
 
@@ -151,7 +158,7 @@ async fn run_app<B: Backend>(terminal: &mut Terminal<B>) -> Result<()> {
     });
 
     let app_actions_sender = event_loop_actions_sender.clone();
-    let configuration_file_path = args.config.clone();
+    let configuration_file_path = args.configuration.clone();
 
     tokio::spawn(async move {
         match watch_for_configuration_file_changes(
@@ -189,7 +196,7 @@ async fn run_app<B: Backend>(terminal: &mut Terminal<B>) -> Result<()> {
     let event_timeout = Duration::from_millis(60);
 
     event_loop_actions_sender
-        .send(AppAction::TryLoadConfigurationFile(args.config))?;
+        .send(AppAction::TryLoadConfigurationFile(args.configuration))?;
 
     loop {
         if app.should_quit {
