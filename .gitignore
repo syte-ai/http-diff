@@ -1,5 +1,5 @@
 /target
 *.log
-config.json
+config*.json
 /output
 /*.sdk

@@ -6,8 +6,8 @@ use crate::{
         request::ResponseVariant,
         types::{AppError, JobStatus},
     },
-    notification::{Notification, NotificationType},
     ui::{
+        notification::{Notification, NotificationId, NotificationType},
         selected_job::SelectedJobState,
         theme::{get_dark_theme, get_light_theme, Theme, ThemeType},
         top::LOGO,
@@ -21,7 +21,7 @@ use std::{
     path::{Path, PathBuf},
     time::{Duration, Instant},
 };
-use tracing::warn;
+use tracing::{error, warn};
 
 pub enum Screen {
     Home,
@@ -137,7 +137,7 @@ impl AppState {
         if job.status == JobStatus::Pending || job.status == JobStatus::Running
         {
             let notification = Notification::new(
-                "pending-job-info-error",
+                NotificationId::PendingJobInfoError,
                 "The job is still executing. Please, wait",
                 Some(Duration::from_secs(2)),
                 NotificationType::Warning,
@@ -339,17 +339,15 @@ impl AppState {
         &self,
         (current, total): (usize, usize),
     ) -> Option<AppAction> {
-        let notification_id = "jobs-progress-change";
-
         let is_notification_displayed_currently =
             self.notification.as_ref().is_some();
 
         let are_sizes_different = current != total;
 
-        let displayed_notification_id_matches = self
-            .notification
-            .as_ref()
-            .is_some_and(|notification| notification.id == notification_id);
+        let displayed_notification_id_matches =
+            self.notification.as_ref().is_some_and(|notification| {
+                notification.id == NotificationId::JobProgressChange
+            });
 
         let should_issue_notification = (!is_notification_displayed_currently
             && are_sizes_different)
@@ -357,7 +355,7 @@ impl AppState {
 
         if should_issue_notification {
             let notification = Notification::new(
-                notification_id,
+                NotificationId::JobProgressChange,
                 &format!("Mapped {} out of {} requests.", current, total),
                 Some(Duration::from_secs(2)),
                 NotificationType::Success,
@@ -535,8 +533,8 @@ impl AppState {
         self.should_show_help = true
     }
 
-    pub fn show_exception_screen(&mut self, error: &AppError) {
-        self.critical_exception = Some(error.clone());
+    pub fn show_exception_screen(&mut self, error: AppError) {
+        self.critical_exception = Some(error);
         self.current_screen = Screen::Exception
     }
 
@@ -576,5 +574,50 @@ impl AppState {
         }
 
         None
+    }
+
+    fn generate_default_config(&self, path: &str) -> Result<(), AppError> {
+        let default_config = Configuration::default();
+
+        let file_path = Path::new(path);
+
+        default_config.save(file_path).map_err(|err| {
+            error!("Failed to save configuration file: {}", err);
+            AppError::Exception("Failed to save configuration file".into())
+        })?;
+
+        Ok(())
+    }
+
+    pub fn save_default_config(&self) -> Option<AppAction> {
+        let path = "./configuration.json";
+
+        let notification = match self.generate_default_config(path) {
+            Ok(()) => {
+                if self.critical_exception.is_some() {
+                    Notification::new(
+                        NotificationId::GenerateDefaultConfig,
+                        &format!("Saved default configuration to {}\nPlease, reload application", path),
+                        None,
+                        NotificationType::Success,
+                    )
+                } else {
+                    Notification::new(
+                        NotificationId::GenerateDefaultConfig,
+                        &format!("Saved default configuration to {}", path),
+                        Some(Duration::from_secs(5)),
+                        NotificationType::Success,
+                    )
+                }
+            }
+            Err(_) => Notification::new(
+                NotificationId::GenerateDefaultConfigFailed,
+                &format!("Failed to save default configuration to {}", path),
+                None,
+                NotificationType::Error,
+            ),
+        };
+
+        Some(AppAction::SetNotification(notification))
     }
 }

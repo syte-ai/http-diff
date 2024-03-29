@@ -15,7 +15,7 @@ use tracing::{debug, error};
 use crate::{
     actions::AppAction,
     http_diff::{app::App, types::AppError},
-    notification::{Notification, NotificationType},
+    ui::notification::{Notification, NotificationId, NotificationType},
 };
 
 pub async fn process_app_action(
@@ -28,7 +28,7 @@ pub async fn process_app_action(
             match job.save(&base_output_directory) {
                 Ok(()) => {
                     let notification = Notification::new(
-                        "saved-job",
+                        NotificationId::SavedJob,
                         &format!(
                             "Saved job to {}",
                             &base_output_directory
@@ -45,7 +45,7 @@ pub async fn process_app_action(
                 }
                 Err(error) => {
                     let notification = Notification::new(
-                        "failed-to-save-job",
+                        NotificationId::FailedToSaveJobs,
                         "Failed to save job",
                         None,
                         NotificationType::Error,
@@ -64,7 +64,7 @@ pub async fn process_app_action(
             }
 
             let notification = Notification::new(
-                "saved-jobs",
+                NotificationId::SavedJobs,
                 &format!(
                     "Saved {} jobs to {}",
                     jobs.len(),

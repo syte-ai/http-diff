@@ -9,8 +9,10 @@ use tokio::{
 };
 use tracing::error;
 
-use crate::notification::NotificationType;
-use crate::{actions::AppAction, notification::Notification};
+use crate::actions::AppAction;
+use crate::ui::notification::{
+    Notification, NotificationId, NotificationType,
+};
 
 use super::config::load_config_from_file;
 use super::job::{map_configuration_to_jobs, Job, JobDTO};
@@ -205,7 +207,7 @@ impl App {
         let notification;
         if failed_jobs.is_empty() {
             notification = Notification::new(
-                "all-requests-finished-without-fails",
+                NotificationId::AllRequestsFinishedWithoutFails,
                 &format!(
                     "All requests are finished in {} {}",
                     time_took,
@@ -216,7 +218,7 @@ impl App {
             );
         } else {
             notification = Notification::new(
-                "all-requests-finished-with-fails",
+                NotificationId::AllRequestsFinishedWithoutFails,
                 &format!(
                     "All requests are finished in {}. {} failed {}.",
                     time_took,
@@ -282,8 +284,7 @@ impl App {
         &mut self,
         path_to_file: &str,
     ) -> Result<(), AppError> {
-        let configuration = load_config_from_file(path_to_file)
-            .map_err(|err| AppError::ValidationError(err.to_string()))?;
+        let configuration = load_config_from_file(path_to_file)?;
 
         self.jobs_semaphore =
             Arc::new(Semaphore::new(configuration.concurrent_jobs));
@@ -348,7 +349,7 @@ impl App {
         path_to_file: &str,
     ) -> Result<(), AppError> {
         let notification = Notification::new(
-            "configuration-reload",
+            NotificationId::ReloadingConfiguration,
             "Reloading configuration file as it was changed.",
             Some(Duration::from_secs(5)),
             NotificationType::Warning,
