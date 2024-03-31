@@ -136,7 +136,7 @@ jobs:
           cp "$BIN" "$ARCHIVE"/
           cp {README.md,COPYING,UNLICENSE,LICENSE-MIT} "$ARCHIVE"/
           mv "$BUILD_ASSETS_DIR/http-diff.1" "$ARCHIVE/doc/"/
-          cp -a "$BUILD_ASSETS_DIR/" "$ARCHIVE/complete/"
+          cp -a $BUILD_ASSETS_DIR/* "$ARCHIVE/complete/"
 
       - name: Build archive (Unix)
         shell: bash
