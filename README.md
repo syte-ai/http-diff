@@ -48,15 +48,39 @@ this config will be translated to following:
 
 All configuration options can be found [here](CONFIGURATION.md).
 
-## Requirements
-
-- Latest rust installed when building from source
-
 ## Installation
 
 Archives are available on [every release](https://github.com/syte-ai/http-diff/releases) as well as `.deb` files for Linux.
 
 Autocomplete for arguments and man pages are included.
+
+### (brew tap) Apple & Linux
+
+Tap the repository by running this command:
+
+```bash
+brew tap syte-ai/http-diff https://github.com/syte-ai/http-diff
+```
+
+and install the package:
+
+```bash
+brew install http-diff
+```
+
+### .deb file for Linux
+
+Download `.deb` file from [latest release](https://github.com/syte-ai/http-diff/releases) and install it using one of the commands:
+
+```bash
+sudo apt install ./path/to/http-diff.deb
+```
+
+or
+
+```bash
+sudo dpkg -i ./path/to/http-diff.deb
+```
 
 ## Developing
 
