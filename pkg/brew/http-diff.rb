@@ -5,10 +5,10 @@ class HttpDiff < Formula
 
   if OS.mac?
       url "https://github.com/syte-ai/http-diff/releases/download/#{version}/http-diff-#{version}-x86_64-apple-darwin.tar.gz"
-      sha256 "b0001ad91e9b1d759a2f23627deda5d0da4cf638e81046c9b999ecc009626059"
+      sha256 "73ac6486835936155643ee836c121e942505faa62d29fa1c00838b4fb236003e"
   elsif OS.linux?
       url "https://github.com/syte-ai/http-diff/releases/download/#{version}/http-diff-#{version}-x86_64-unknown-linux-musl.tar.gz"
-      sha256 "d03e506ea0cb15e4d96feabb55ae3c7521ade9b3a8c2a3dea7341d28765b7625"
+      sha256 "18c130e108fcee7f2bada00c8bc4ef388186fe3e1151d732b6ad5a863925d135"
   end
 
   conflicts_with "http-diff"
