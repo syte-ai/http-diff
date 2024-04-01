@@ -18,7 +18,7 @@ use std::{error::Error, io, time::Duration};
 use std::{fs::File, sync::Arc};
 use std::{path::Path, time::Instant};
 use tokio::sync::broadcast;
-use tracing::{error, info};
+use tracing::error;
 use tracing_subscriber::{
     filter::{LevelFilter, Targets},
     fmt,
@@ -26,8 +26,8 @@ use tracing_subscriber::{
 };
 use ui::ui;
 use worker::{
-    handle_commands_to_http_diff_loop, process_app_action,
-    watch_for_configuration_file_changes,
+    get_configuration_file_watcher, handle_commands_to_http_diff_loop,
+    process_app_action,
 };
 
 pub mod actions;
@@ -160,22 +160,11 @@ async fn run_app<B: Backend>(terminal: &mut Terminal<B>) -> Result<()> {
     let app_actions_sender = event_loop_actions_sender.clone();
     let configuration_file_path = args.configuration.clone();
 
-    tokio::spawn(async move {
-        match watch_for_configuration_file_changes(
-            configuration_file_path,
-            app_actions_sender,
-        )
-        .await
-        {
-            Err(error) => error!(
-                "failed watch_for_configuration_file_changes with error: {}",
-                error
-            ),
-            Ok(()) => {
-                info!("watch_for_configuration_file_changes finished")
-            }
-        }
-    });
+    let _watcher = get_configuration_file_watcher(
+        configuration_file_path,
+        app_actions_sender,
+    )
+    .await?;
 
     tokio::spawn(async move {
         loop {
