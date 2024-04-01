@@ -154,10 +154,10 @@ pub async fn handle_commands_to_http_diff_loop(
     }
 }
 
-pub async fn watch_for_configuration_file_changes<P: AsRef<Path>>(
+pub async fn get_configuration_file_watcher<P: AsRef<Path>>(
     path: P,
     app_actions_sender: Sender<AppAction>,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<PollWatcher> {
     let path_to_file = path
         .as_ref()
         .to_str()
@@ -198,5 +198,5 @@ pub async fn watch_for_configuration_file_changes<P: AsRef<Path>>(
 
     watcher.watch(path.as_ref(), RecursiveMode::NonRecursive)?;
 
-    loop {}
+    Ok(watcher)
 }
