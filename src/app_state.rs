@@ -8,12 +8,15 @@ use crate::{
     },
     ui::{
         notification::{Notification, NotificationId, NotificationType},
+        row::print_table_row,
         selected_job::SelectedJobState,
+        table::get_headers_from_domains,
         theme::{get_dark_theme, get_light_theme, Theme, ThemeType},
         top::LOGO,
     },
 };
 use chrono::Local;
+use crossterm::style::Stylize;
 use ratatui::widgets::*;
 use similar::ChangeTag;
 use std::{
@@ -48,10 +51,11 @@ pub struct AppState {
     pub current_screen: Screen,
     pub current_theme: ThemeType,
     pub theme: Theme,
+    pub is_headless_mode: bool,
 }
 
 impl AppState {
-    pub fn new(output_directory: &Path) -> AppState {
+    pub fn new(output_directory: &Path, is_headless_mode: bool) -> AppState {
         let started_at = Local::now();
 
         let base_directory = output_directory
@@ -77,6 +81,8 @@ impl AppState {
             current_theme: ThemeType::Dark,
             theme: get_dark_theme(),
             critical_exception: None,
+
+            is_headless_mode,
         }
     }
 
@@ -95,6 +101,10 @@ impl AppState {
                 self.theme = get_dark_theme()
             }
         }
+    }
+
+    pub fn set_critical_exception(&mut self, critical_exception: AppError) {
+        self.critical_exception = Some(critical_exception);
     }
 
     pub fn select_next_row(&mut self) {
@@ -230,6 +240,35 @@ impl AppState {
 
     pub fn upsert_jobs(&mut self, updated_jobs: Vec<JobDTO>) {
         for updated_job in updated_jobs {
+            if self.is_headless_mode {
+                match &updated_job.status {
+                    JobStatus::Failed | JobStatus::Finished => {
+                        let name = updated_job.job_name.clone();
+                        let mut cells = vec![name.white()];
+
+                        for request in updated_job.requests.iter() {
+                            let raw_status_text =
+                                request.get_status_text().trim().to_owned();
+
+                            let text = match request.status {
+                                JobStatus::Finished => {
+                                    raw_status_text.green().bold()
+                                }
+                                JobStatus::Failed => {
+                                    raw_status_text.white().on_red().bold()
+                                }
+                                _ => raw_status_text.white(),
+                            };
+
+                            cells.push(text);
+                        }
+
+                        print_table_row(cells, false);
+                    }
+                    _ => {}
+                }
+            }
+
             self.append_job_content_length_vec(&updated_job);
 
             if let Some(existing_job_dto) = self
@@ -332,7 +371,16 @@ impl AppState {
         self.concurrency_level = configuration.concurrent_jobs;
         self.critical_exception = None;
 
-        self.reset_jobs_state()
+        self.reset_jobs_state();
+
+        if self.is_headless_mode {
+            let table_headers = get_headers_from_domains(&self.domains)
+                .iter()
+                .map(|text| text.to_string().bold())
+                .collect();
+
+            print_table_row(table_headers, true);
+        }
     }
 
     pub fn on_load_jobs_progress_change(
@@ -533,8 +581,7 @@ impl AppState {
         self.should_show_help = true
     }
 
-    pub fn show_exception_screen(&mut self, error: AppError) {
-        self.critical_exception = Some(error);
+    pub fn show_exception_screen(&mut self) {
         self.current_screen = Screen::Exception
     }
 
@@ -574,6 +621,10 @@ impl AppState {
         }
 
         None
+    }
+
+    pub fn set_should_quit(&mut self, should_quit: bool) {
+        self.should_quit = should_quit
     }
 
     fn generate_default_config(&self, path: &str) -> Result<(), AppError> {

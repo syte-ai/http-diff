@@ -1,6 +1,5 @@
-use ratatui::{prelude::*, widgets::*};
-
 use crate::app_state::AppState;
+use ratatui::{prelude::*, widgets::*};
 
 fn notification_rect(r: Rect) -> Rect {
     let popup_vertical_layout = Layout::default()
@@ -110,6 +109,7 @@ pub enum NotificationId {
     GenerateDefaultConfig,
     GenerateDefaultConfigFailed,
     AllRequestsFinishedWithoutFails,
+    AllRequestsFinishedWithFails,
     ReloadingConfiguration,
 }
 

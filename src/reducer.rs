@@ -1,8 +1,11 @@
+use crossterm::style::Stylize;
+use tokio::sync::broadcast::Sender;
 use tracing::info;
 
 use crate::{
     actions::AppAction,
     app_state::{AppState, Screen},
+    ui::notification::NotificationId,
 };
 
 fn should_skip_action(app_has_exception: bool, action: &AppAction) -> bool {
@@ -15,6 +18,7 @@ fn should_skip_action(app_has_exception: bool, action: &AppAction) -> bool {
         | AppAction::ConfigurationLoaded(_)
         | AppAction::GenerateDefaultConfiguration
         | AppAction::DismissNotification
+        | AppAction::SaveFailedJobs(_)
         | AppAction::SetNotification(_) => false,
         _ => true,
     }
@@ -23,6 +27,7 @@ fn should_skip_action(app_has_exception: bool, action: &AppAction) -> bool {
 pub fn update_state(
     app: &mut AppState,
     action: AppAction,
+    events_sender: &Sender<AppAction>,
 ) -> Option<AppAction> {
     let skip_action =
         should_skip_action(app.critical_exception.is_some(), &action);
@@ -36,11 +41,17 @@ pub fn update_state(
     }
     match action {
         AppAction::Quit => {
-            app.should_quit = true;
+            app.set_should_quit(true);
             None
         }
         AppAction::SetCriticalException(error) => {
-            app.show_exception_screen(error);
+            app.set_critical_exception(error);
+
+            if app.is_headless_mode {
+                app.set_should_quit(true);
+            } else {
+                app.show_exception_screen();
+            }
             None
         }
         AppAction::ShowHelp => {
@@ -70,7 +81,40 @@ pub fn update_state(
             None
         }
         AppAction::SetNotification(notification) => {
+            if app.is_headless_mode {
+                match &notification.id {
+                    &NotificationId::AllRequestsFinishedWithFails => {
+                        app.set_critical_exception(
+                            crate::http_diff::types::AppError::Exception(
+                                notification.body.clone(),
+                            ),
+                        );
+
+                        app.set_notification(notification);
+
+                        let failed_jobs = app.get_failed_jobs();
+
+                        if !failed_jobs.is_empty() {
+                            let _ = events_sender
+                                .send(AppAction::SaveFailedJobs(failed_jobs));
+                        } else {
+                            app.set_should_quit(true)
+                        }
+
+                        return None;
+                    }
+                    NotificationId::AllRequestsFinishedWithoutFails
+                    | NotificationId::SavedJobs => {
+                        println!("\n{}", notification.body.as_str().green());
+
+                        app.set_should_quit(true)
+                    }
+                    _ => {}
+                };
+            }
+
             app.set_notification(notification);
+
             None
         }
         AppAction::DismissNotification => {

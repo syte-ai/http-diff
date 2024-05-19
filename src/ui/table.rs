@@ -5,15 +5,21 @@ use ratatui::{prelude::*, widgets::*};
 
 use super::theme::Theme;
 
+pub fn get_headers_from_domains(domains: &Vec<String>) -> Vec<&str> {
+    let mut headers: Vec<&str> = vec!["Endpoint"];
+
+    for domain in domains {
+        headers.push(domain.as_str())
+    }
+
+    headers
+}
+
 pub fn render_jobs_table(frame: &mut Frame, area: Rect, app: &mut AppState) {
     let selected_style = Style::default().add_modifier(Modifier::REVERSED);
     let normal_style = Style::default().bg(app.theme.gray);
 
-    let mut headers: Vec<&str> = vec!["Endpoint"];
-
-    for domain in &app.domains {
-        headers.push(domain.as_str())
-    }
+    let headers = get_headers_from_domains(&app.domains);
 
     let header_cells = headers.iter().map(|h| {
         Cell::from(*h).style(

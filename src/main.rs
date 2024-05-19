@@ -3,6 +3,7 @@ use anyhow::Result;
 use app_state::AppState;
 use chrono::Local;
 use clap::Parser;
+use crossterm::style::Stylize;
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture},
     execute,
@@ -12,10 +13,14 @@ use crossterm::{
     },
 };
 use http_diff::app::App as HttpDiff;
-use ratatui::prelude::*;
+use ratatui::{
+    backend::{Backend, CrosstermBackend},
+    Terminal,
+};
+// use ratatui::prelude::*;
 use reducer::update_state;
-use std::{error::Error, io, time::Duration};
-use std::{fs::File, sync::Arc};
+use std::{fs::File, process, sync::Arc};
+use std::{io, time::Duration};
 use std::{path::Path, time::Instant};
 use tokio::sync::broadcast;
 use tracing::error;
@@ -24,7 +29,7 @@ use tracing_subscriber::{
     fmt,
     prelude::*,
 };
-use ui::ui;
+use ui::{top::print_logo, ui};
 use worker::{
     get_configuration_file_watcher, handle_commands_to_http_diff_loop,
     process_app_action,
@@ -79,7 +84,7 @@ fn reset_terminal(
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
+async fn main() -> Result<()> {
     let args = match Arguments::try_parse() {
         Err(err) => {
             println!("{err}");
@@ -102,22 +107,28 @@ async fn main() -> Result<(), Box<dyn Error>> {
             .try_init();
     }
 
-    let mut terminal = init_terminal()?;
+    let mut terminal =
+        if !args.headless { Some(init_terminal()?) } else { None };
 
-    let res = run_app(&mut terminal).await;
+    let res = run_app(&mut terminal, args).await;
 
-    reset_terminal(&mut terminal)?;
+    if let Some(mut terminal) = terminal {
+        reset_terminal(&mut terminal)?;
+    }
 
     if let Err(err) = res {
-        println!("{err:?}");
+        println!("\n{}", err.to_string().red());
+
+        process::exit(1);
     }
 
     Ok(())
 }
 
-async fn run_app<B: Backend>(terminal: &mut Terminal<B>) -> Result<()> {
-    let args = Arguments::try_parse()?;
-
+async fn run_app<B: Backend>(
+    terminal: &mut Option<Terminal<B>>,
+    args: Arguments,
+) -> Result<()> {
     let output_directory = Path::new(&args.output_directory);
 
     let started_at = Local::now();
@@ -125,7 +136,7 @@ async fn run_app<B: Backend>(terminal: &mut Terminal<B>) -> Result<()> {
     let base_output_directory = output_directory
         .join(started_at.format("%Y-%m-%d %H:%M:%S").to_string());
 
-    let mut app = AppState::new(&output_directory);
+    let mut app = AppState::new(&output_directory, args.headless);
 
     let (event_loop_actions_sender, mut event_loop_actions_receiver) =
         broadcast::channel::<AppAction>(1000);
@@ -136,6 +147,10 @@ async fn run_app<B: Backend>(terminal: &mut Terminal<B>) -> Result<()> {
     let mut worker_actions_receiver = worker_actions_sender.subscribe();
 
     let mut http_diff = HttpDiff::new(event_loop_actions_sender.clone())?;
+
+    if app.is_headless_mode {
+        print_logo();
+    };
 
     tokio::spawn(async move {
         loop {
@@ -170,14 +185,14 @@ async fn run_app<B: Backend>(terminal: &mut Terminal<B>) -> Result<()> {
         loop {
             let action = match worker_actions_receiver.recv().await {
                 Ok(action) => action,
-                Err(_) => continue,
+                Err(_) => break,
             };
 
             let output_dir = base_output_directory.clone();
             let sender = worker_actions_sender.clone();
 
             tokio::spawn(async move {
-                process_app_action(&action, sender, &output_dir).await;
+                process_app_action(action, sender, output_dir).await;
             });
         }
     });
@@ -189,25 +204,30 @@ async fn run_app<B: Backend>(terminal: &mut Terminal<B>) -> Result<()> {
 
     loop {
         if app.should_quit {
+            if app.critical_exception.is_some() {
+                return Err(app.critical_exception.unwrap().into());
+            }
             return Ok(());
         }
 
-        terminal.draw(|f| ui(f, &mut app))?;
+        if let Some(terminal) = terminal {
+            terminal.draw(|f| ui(f, &mut app))?;
 
-        let started_to_poll = Instant::now();
+            let started_to_poll = Instant::now();
 
-        // receive input and dispatch actions
-        while started_to_poll.elapsed() < event_timeout {
-            if event::poll(event_timeout - started_to_poll.elapsed())? {
-                if let Some(action) =
-                    event_to_app_action(&event::read()?, &app)
-                {
-                    event_loop_actions_sender.send(action)?;
+            // receive input and dispatch actions
+            while started_to_poll.elapsed() < event_timeout {
+                if event::poll(event_timeout - started_to_poll.elapsed())? {
+                    if let Some(action) =
+                        event_to_app_action(&event::read()?, &app)
+                    {
+                        event_loop_actions_sender.send(action)?;
+                    }
+                } else {
+                    break;
                 }
-            } else {
-                break;
             }
-        }
+        };
 
         // receive and act on actions
         loop {
@@ -215,8 +235,12 @@ async fn run_app<B: Backend>(terminal: &mut Terminal<B>) -> Result<()> {
                 Ok(action) => {
                     let mut current_action = Some(action);
 
-                    while let Some(a) = current_action {
-                        current_action = update_state(&mut app, a);
+                    while let Some(action) = current_action {
+                        current_action = update_state(
+                            &mut app,
+                            action,
+                            &event_loop_actions_sender,
+                        );
                     }
                 }
                 Err(_) => {

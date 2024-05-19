@@ -152,3 +152,11 @@ fn keys_explanation_paragraph(app: &AppState) -> Paragraph<'static> {
 
     Paragraph::new(text).wrap(Wrap { trim: true })
 }
+
+pub fn print_logo() {
+    for line in LOGO.iter() {
+        println!("{}", line)
+    }
+
+    println!("v{}\n", APP_VERSION)
+}

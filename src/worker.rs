@@ -1,3 +1,4 @@
+use futures::future::join_all;
 use notify::{
     event::{MetadataKind, ModifyKind},
     Config, Event, EventKind, PollWatcher, RecursiveMode, Watcher,
@@ -19,13 +20,13 @@ use crate::{
 };
 
 pub async fn process_app_action(
-    action: &AppAction,
+    action: AppAction,
     worker_actions_sender: Sender<AppAction>,
-    base_output_directory: &PathBuf,
+    base_output_directory: PathBuf,
 ) {
     match action {
         AppAction::SaveCurrentJob(job) => {
-            match job.save(&base_output_directory) {
+            match job.save(&base_output_directory).await {
                 Ok(()) => {
                     let notification = Notification::new(
                         NotificationId::SavedJob,
@@ -59,15 +60,27 @@ pub async fn process_app_action(
             };
         }
         AppAction::SaveFailedJobs(jobs) => {
-            for job in jobs {
-                let _ = job.save(&base_output_directory);
-            }
+            let jobs_count = jobs.len();
+
+            let tasks: Vec<_> = jobs
+                .into_iter()
+                .map(|job| {
+                    let output = base_output_directory.clone();
+
+                    tokio::spawn(async move { job.save(&output).await })
+                })
+                .collect();
+
+            join_all(tasks).await;
+
+            let jobs_display_text_part =
+                if jobs_count == 1 { "job" } else { "jobs" };
 
             let notification = Notification::new(
                 NotificationId::SavedJobs,
                 &format!(
-                    "Saved {} jobs to {}",
-                    jobs.len(),
+                    "Saved {} {jobs_display_text_part} to {}",
+                    jobs_count,
                     base_output_directory
                         .canonicalize()
                         .unwrap_or_else(|_| PathBuf::new())
