@@ -218,7 +218,7 @@ impl App {
             );
         } else {
             notification = Notification::new(
-                NotificationId::AllRequestsFinishedWithoutFails,
+                NotificationId::AllRequestsFinishedWithFails,
                 &format!(
                     "All requests are finished in {}. {} failed {}.",
                     time_took,

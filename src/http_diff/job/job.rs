@@ -10,10 +10,9 @@ use std::io::{BufReader, Read, Write};
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::sync::Arc;
-use std::{
-    fs::{create_dir_all, File},
-    time::Duration,
-};
+use std::time::Duration;
+use tokio::fs::{create_dir_all, File};
+use tokio::io::AsyncWriteExt;
 use tokio::sync::{broadcast, Semaphore};
 use tracing::{debug, error, info};
 
@@ -455,12 +454,12 @@ impl From<Job> for JobDTO {
 }
 
 impl JobDTO {
-    pub fn save(&self, base_directory: &PathBuf) -> Result<()> {
+    pub async fn save(&self, base_directory: &PathBuf) -> Result<()> {
         let base_path = base_directory
             .join(clean_special_chars_for_filename(&self.job_name));
 
         if !base_path.exists() {
-            create_dir_all(&base_path)?;
+            create_dir_all(&base_path).await?;
         }
 
         for job in &self.requests {
@@ -470,11 +469,11 @@ impl JobDTO {
             );
             let job_file_path = base_path.join(file_name);
 
-            let mut file = File::create(&job_file_path)?;
+            let mut file = File::create(&job_file_path).await?;
 
             let content = serde_json::to_string_pretty(&job.response)?;
 
-            file.write_all(content.as_bytes())?;
+            file.write_all(content.as_bytes()).await?;
 
             debug!("response saved to: {:?}", job_file_path.to_str());
         }

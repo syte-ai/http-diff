@@ -11,4 +11,7 @@ pub struct Arguments {
 
     #[arg(short, long, default_value = "false")]
     pub enable_log: bool,
+
+    #[arg(long, default_value = "false")]
+    pub headless: bool,
 }

@@ -15,6 +15,7 @@ pub mod exception;
 pub mod help_screen;
 pub mod notification;
 pub mod progress;
+pub mod row;
 pub mod selected_job;
 pub mod table;
 pub mod theme;
