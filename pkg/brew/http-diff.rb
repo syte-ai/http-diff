@@ -1,14 +1,14 @@
 class HttpDiff < Formula
-  version '0.0.4'
+  version '0.0.5'
   desc "CLI tool to verify consistency across web server versions."
   homepage "https://github.com/syte-ai/http-diff"
 
   if OS.mac?
       url "https://github.com/syte-ai/http-diff/releases/download/#{version}/http-diff-#{version}-x86_64-apple-darwin.tar.gz"
-      sha256 "59ec99fcc86065ccee2b42c894fee244ff188400dd8840cd5ae5987b5a4f24e4"
+      sha256 "9cffe02455e1cd45056d32c225c2497a25bf1b2c050fa101e3778865bd09388c"
   elsif OS.linux?
       url "https://github.com/syte-ai/http-diff/releases/download/#{version}/http-diff-#{version}-x86_64-unknown-linux-musl.tar.gz"
-      sha256 "13b03fc42ad8533df6b64a057fed261455ae33a02b7f59a8804ccf354de7b303"
+      sha256 "92ea65bb3eb2b2ff5649975009643f0d655c11f52ef54ce7f226995c9de52eca"
   end
 
   conflicts_with "http-diff"
