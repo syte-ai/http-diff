@@ -15,6 +15,16 @@ pub enum AppError {
     Exception(String),
 }
 
+impl From<anyhow::Error> for AppError {
+    fn from(error: anyhow::Error) -> Self {
+        if let Some(app_error) = error.downcast_ref::<AppError>() {
+            return app_error.clone();
+        }
+
+        AppError::Exception(error.to_string())
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub enum HttpMethod {
     GET,

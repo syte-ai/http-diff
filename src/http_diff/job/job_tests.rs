@@ -19,6 +19,7 @@ use super::job_mapper::map_configuration_to_jobs;
 #[test]
 pub fn test_convert_config_jobs() {
     let jobs_semaphore = Arc::new(Semaphore::new(40));
+    let threads_semaphore = Arc::new(Semaphore::new(10));
 
     let (app_actions_sender, _) = broadcast::channel::<AppAction>(100);
 
@@ -114,12 +115,14 @@ pub fn test_convert_config_jobs() {
         &configuration,
         app_actions_sender.clone(),
         jobs_semaphore.clone(),
+        threads_semaphore.clone(),
     )
     .unwrap();
 
     let expected_jobs = vec![
         Job {
-            semaphore: jobs_semaphore.clone(),
+            requests_semaphore:  jobs_semaphore.clone(),
+            threads_semaphore: threads_semaphore.clone(),
             requests: vec![
                 Request {
                     uri: Url::parse("http://domain-a.com/health").unwrap(),
@@ -166,7 +169,8 @@ pub fn test_convert_config_jobs() {
             request_builder: None,
         },
         Job {
-            semaphore: jobs_semaphore.clone(),
+            requests_semaphore: jobs_semaphore.clone(),
+            threads_semaphore: threads_semaphore.clone(),
             requests: vec![
                 Request {
                     uri: Url::parse("http://domain-a.com/api/v1/users/123?status=deleted").unwrap(),
@@ -216,7 +220,8 @@ pub fn test_convert_config_jobs() {
             request_builder: None,
         },
         Job {
-            semaphore: jobs_semaphore.clone(),
+            requests_semaphore: jobs_semaphore.clone(),
+            threads_semaphore: threads_semaphore.clone(),
             requests: vec![
                 Request {
                     uri: Url::parse("http://domain-a.com/api/v1/users/444?status=deleted").unwrap(),
@@ -266,7 +271,8 @@ pub fn test_convert_config_jobs() {
             request_builder: None,
         },
         Job {
-            semaphore: jobs_semaphore.clone(),
+            requests_semaphore: jobs_semaphore.clone(),
+            threads_semaphore: threads_semaphore.clone(),
             requests: vec![
                 Request {
                     uri: Url::parse("http://domain-a.com/api/v1/accounts/123?admin=true").unwrap(),
@@ -328,7 +334,8 @@ pub fn test_convert_config_jobs() {
             request_builder: None,
         },
         Job {
-            semaphore: jobs_semaphore.clone(),
+            requests_semaphore: jobs_semaphore.clone(),
+            threads_semaphore: threads_semaphore.clone(),
             requests: vec![
                 Request {
                     uri: Url::parse("http://domain-a.com/api/v1/accounts/123?admin=false").unwrap(),

@@ -1,12 +1,12 @@
-use crossterm::style::Stylize;
-use tokio::sync::broadcast::Sender;
-use tracing::info;
-
 use crate::{
     actions::AppAction,
     app_state::{AppState, Screen},
+    http_diff::types::AppError,
     ui::notification::NotificationId,
 };
+use crossterm::style::Stylize;
+use tokio::sync::broadcast::Sender;
+use tracing::info;
 
 fn should_skip_action(app_has_exception: bool, action: &AppAction) -> bool {
     if !app_has_exception {
@@ -84,11 +84,9 @@ pub fn update_state(
             if app.is_headless_mode {
                 match &notification.id {
                     &NotificationId::AllRequestsFinishedWithFails => {
-                        app.set_critical_exception(
-                            crate::http_diff::types::AppError::Exception(
-                                notification.body.clone(),
-                            ),
-                        );
+                        app.set_critical_exception(AppError::Exception(
+                            notification.body.clone(),
+                        ));
 
                         app.set_notification(notification);
 

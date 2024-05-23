@@ -1,15 +1,13 @@
-use std::time::Duration;
-
-use crossterm::event::{
-    Event, KeyCode, KeyEventKind, KeyModifiers, MouseEventKind,
-};
-use similar::ChangeTag;
-
 use crate::{
     app_state::{AppState, Screen},
     http_diff::{config::Configuration, job::JobDTO, types::AppError},
     ui::notification::{Notification, NotificationId, NotificationType},
 };
+use crossterm::event::{
+    Event, KeyCode, KeyEventKind, KeyModifiers, MouseEventKind,
+};
+use similar::ChangeTag;
+use std::time::Duration;
 
 #[derive(Debug, Clone)]
 pub struct JobDiffs {

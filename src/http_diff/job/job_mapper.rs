@@ -21,7 +21,8 @@ use super::job::Job;
 pub fn map_configuration_to_jobs(
     configuration: &Configuration,
     app_actions_sender: broadcast::Sender<AppAction>,
-    jobs_semaphore: Arc<Semaphore>,
+    requests_semaphore: Arc<Semaphore>,
+    threads_semaphore: Arc<Semaphore>,
 ) -> Result<Vec<Job>, AppError> {
     let mut endpoints: Vec<Job> = Vec::new();
 
@@ -54,7 +55,8 @@ pub fn map_configuration_to_jobs(
                 &configuration.domains,
                 endpoint_config,
                 app_actions_sender.clone(),
-                jobs_semaphore.clone(),
+                requests_semaphore.clone(),
+                threads_semaphore.clone(),
             )?;
 
             endpoints.push(new_job);
@@ -69,7 +71,8 @@ pub fn map_configuration_to_jobs(
                     &configuration.domains,
                     endpoint_config,
                     app_actions_sender.clone(),
-                    jobs_semaphore.clone(),
+                    requests_semaphore.clone(),
+                    threads_semaphore.clone(),
                 )?;
 
                 endpoints.push(new_job);
@@ -84,7 +87,8 @@ fn map_job_with_no_variables(
     domains: &Vec<DomainVariant>,
     endpoint_config: &EndpointConfiguration,
     app_actions_sender: broadcast::Sender<AppAction>,
-    jobs_semaphore: Arc<Semaphore>,
+    requests_semaphore: Arc<Semaphore>,
+    threads_semaphore: Arc<Semaphore>,
 ) -> Result<Job, AppError> {
     let mut jobs: Vec<Request> = Vec::new();
 
@@ -129,7 +133,8 @@ fn map_job_with_no_variables(
         jobs,
         &endpoint_config.endpoint,
         app_actions_sender,
-        jobs_semaphore,
+        requests_semaphore,
+        threads_semaphore,
         &endpoint_config.response_processor,
         &endpoint_config.request_builder,
     ))
@@ -141,7 +146,8 @@ fn map_job_with_variables(
     domains: &Vec<DomainVariant>,
     endpoint_config: &EndpointConfiguration,
     app_actions_sender: broadcast::Sender<AppAction>,
-    jobs_semaphore: Arc<Semaphore>,
+    requests_semaphore: Arc<Semaphore>,
+    threads_semaphore: Arc<Semaphore>,
 ) -> Result<Job, AppError> {
     let mut jobs: Vec<Request> = Vec::new();
 
@@ -206,7 +212,8 @@ fn map_job_with_variables(
         jobs,
         &formatted_string,
         app_actions_sender.clone(),
-        jobs_semaphore.clone(),
+        requests_semaphore.clone(),
+        threads_semaphore.clone(),
         &endpoint_config.response_processor,
         &endpoint_config.request_builder,
     ))
