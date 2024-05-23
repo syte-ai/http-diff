@@ -1,5 +1,5 @@
 use actions::{event_to_app_action, AppAction};
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use app_state::AppState;
 use chrono::Local;
 use clap::Parser;
@@ -17,7 +17,6 @@ use ratatui::{
     backend::{Backend, CrosstermBackend},
     Terminal,
 };
-// use ratatui::prelude::*;
 use reducer::update_state;
 use std::{fs::File, process, sync::Arc};
 use std::{io, time::Duration};
@@ -164,9 +163,9 @@ async fn run_app<B: Backend>(
                 Err(app_error) => {
                     error!("handle_commands_to_http_diff_loop returned error: {app_error}");
 
-                    let _ = http_diff
-                        .app_actions_sender
-                        .send(AppAction::SetCriticalException(app_error));
+                    let _ = http_diff.app_actions_sender.send(
+                        AppAction::SetCriticalException(app_error.into()),
+                    );
                 }
             }
         }
@@ -204,8 +203,8 @@ async fn run_app<B: Backend>(
 
     loop {
         if app.should_quit {
-            if app.critical_exception.is_some() {
-                return Err(app.critical_exception.unwrap().into());
+            if app.critical_exception.is_some() && app.is_headless_mode {
+                return Err(anyhow!(app.critical_exception.unwrap()));
             }
             return Ok(());
         }

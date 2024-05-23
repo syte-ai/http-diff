@@ -594,6 +594,7 @@ dependencies = [
  "futures",
  "futures-util",
  "notify",
+ "num_cpus",
  "openssl",
  "rand",
  "ratatui",

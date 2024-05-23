@@ -2,18 +2,20 @@ use super::super::request::{Request, RequestBuilderDTO, ResponseVariant};
 use super::super::types::{AppError, JobStatus};
 use super::super::utils::clean_special_chars_for_filename;
 use crate::actions::AppAction;
-use anyhow::Result;
+use anyhow::{bail, Result};
 use futures::future::join_all;
 use similar::{ChangeTag, TextDiff};
-use std::io::BufRead;
-use std::io::{BufReader, Read, Write};
 use std::path::PathBuf;
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::fs::{create_dir_all, File};
+use tokio::io::AsyncReadExt;
 use tokio::io::AsyncWriteExt;
+use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::process::Command;
 use tokio::sync::{broadcast, Semaphore};
+use tokio::task;
 use tracing::{debug, error, info};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -43,7 +45,8 @@ impl JobDTO {
 
 #[derive(Clone, Debug)]
 pub struct Job {
-    pub semaphore: Arc<Semaphore>,
+    pub requests_semaphore: Arc<Semaphore>,
+    pub threads_semaphore: Arc<Semaphore>,
     pub requests: Vec<Request>,
     pub status: JobStatus,
     pub job_duration: Option<Duration>,
@@ -67,7 +70,8 @@ impl Job {
         requests: Vec<Request>,
         job_name: &str,
         app_actions_sender: broadcast::Sender<AppAction>,
-        semaphore: Arc<Semaphore>,
+        requests_semaphore: Arc<Semaphore>,
+        threads_semaphore: Arc<Semaphore>,
         response_processor: &Option<Vec<String>>,
         request_builder: &Option<Vec<String>>,
     ) -> Self {
@@ -77,7 +81,8 @@ impl Job {
             job_duration: None,
             job_name: job_name.to_string(),
             app_actions_sender,
-            semaphore,
+            requests_semaphore,
+            threads_semaphore,
             response_processor: response_processor.clone(),
             request_builder: request_builder.clone(),
         }
@@ -101,12 +106,12 @@ impl Job {
         self.status == JobStatus::Failed
     }
 
-    pub async fn start(&mut self) -> Result<(), AppError> {
+    pub async fn start(&mut self) -> Result<()> {
         self.reset();
 
         self.publish_self();
 
-        let a_permit = self.semaphore.acquire().await.unwrap();
+        let a_permit = self.requests_semaphore.acquire().await?;
 
         self.status = JobStatus::Running;
         self.publish_self();
@@ -136,7 +141,8 @@ impl Job {
                     return Err(AppError::Exception(format!(
                         "Exception during request execution: {}",
                         e
-                    )));
+                    ))
+                    .into());
                 }
             }
         }
@@ -160,7 +166,7 @@ impl Job {
 
         self.publish_self();
 
-        self.calculate_job_diffs()?;
+        self.calculate_job_diffs().await?;
 
         let some_failed =
             self.requests.iter().any(|job| job.status == JobStatus::Failed);
@@ -176,10 +182,10 @@ impl Job {
         Ok(())
     }
 
-    pub fn apply_request_builder_to_request(
+    pub async fn apply_request_builder_to_request(
         request_builder_command: &Vec<String>,
         request: &Request,
-    ) -> Result<Option<RequestBuilderDTO>, AppError> {
+    ) -> Result<Option<RequestBuilderDTO>> {
         debug!("request_builder: {:?}", request_builder_command);
 
         let job_name = request.uri.to_string();
@@ -192,7 +198,7 @@ impl Job {
                 Err(error) => {
                     error!("request_serialization failed: {error}");
 
-                    return Err(AppError::ValidationError(format!(
+                    bail!(AppError::ValidationError(format!(
                         "Failed to serialize {} request",
                         job_name
                     )));
@@ -203,12 +209,14 @@ impl Job {
             match Job::execute_external_process(
                 request_builder_command,
                 Some(request_serialized.as_str()),
-            ) {
+            )
+            .await
+            {
                 Ok(output) => output,
                 Err(error) => {
                     error!("request builder process failed: {error}");
 
-                    return Err(AppError::ValidationError(format!(
+                    bail!(AppError::ValidationError(format!(
                         "request builder process failed for job {}",
                         job_name
                     )));
@@ -223,20 +231,20 @@ impl Job {
                 Err(error) => {
                     error!("Failed to deserialize request {job_name} after applying builder command: {error}");
 
-                    return Err(AppError::ValidationError(format!(
-                    "Failed to deserialize request {} after applying builder command",
-                    job_name
-                )));
+                    bail!(AppError::ValidationError(format!(
+                        "Failed to deserialize request {} after applying builder command",
+                        job_name
+                    )));
                 }
             };
 
         return Ok(Some(request_deserialized_after_builder_process));
     }
 
-    pub fn execute_external_process(
+    pub async fn execute_external_process(
         raw_command: &Vec<String>,
         input: Option<&str>,
-    ) -> Result<String, AppError> {
+    ) -> Result<String> {
         let command = raw_command.first().cloned().unwrap_or("echo".into());
 
         let (_, arguments) = raw_command.split_at(1);
@@ -246,12 +254,7 @@ impl Job {
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
-            .spawn()
-            .map_err(|e| {
-                AppError::ValidationError(format!(
-                    "Failed to spawn external process: {e}"
-                ))
-            })?;
+            .spawn()?;
 
         if let Some(input) = input {
             let mut stdin = child.stdin.take().ok_or_else(|| {
@@ -262,14 +265,10 @@ impl Job {
 
             let input = input.to_owned();
 
-            std::thread::spawn(move || -> Result<(), AppError> {
-                stdin.write_all(input.as_bytes()).map_err(|e| {
-                    AppError::ValidationError(format!(
-                        "Failed to write stdin in external process: {e}"
-                    ))
-                })?;
+            tokio::spawn(async move {
+                stdin.write_all(input.as_bytes()).await.unwrap();
 
-                Ok(())
+                drop(stdin);
             });
         }
 
@@ -285,67 +284,53 @@ impl Job {
             )
         })?;
 
-        let stdout_thread =
-            std::thread::spawn(move || -> Result<String, AppError> {
-                let mut capture = String::new();
-                for line in BufReader::new(child_stdout).lines() {
-                    let line = line.map_err(|e| {
-                        AppError::ValidationError(format!(
-                            "Failed to read a line from external process: {e}"
-                        ))
-                    })?;
+        let mut reader = BufReader::new(child_stdout).lines();
 
-                    if !capture.is_empty() {
-                        capture.push_str("\n");
-                    }
-
-                    capture.push_str(&line);
-                }
-                Ok(capture)
+        let command_handle = tokio::spawn(async move {
+            let status = child.wait().await.or_else(|_| {
+                Err(AppError::Exception(
+                    "Failed to await external process".into(),
+                ))
             });
 
-        let output: String = stdout_thread.join().map_err(|_| {
-            AppError::ValidationError(
-                "Failed to read output from external process".into(),
-            )
-        })??;
+            status
+        });
 
-        let exit_status = child.wait().map_err(|e| {
-            AppError::ValidationError(format!(
-                "Failed to read output from external process: {e}"
-            ))
-        })?;
+        let mut capture = String::new();
+
+        while let Some(line) = reader.next_line().await? {
+            capture.push_str(&line);
+            capture.push_str("\n");
+        }
+
+        let exit_status = command_handle.await??;
 
         match exit_status.success() {
             false => {
                 let mut output_string = String::new();
 
-                child_stderr
-                    .read_to_string(&mut output_string)
-                    .map_err(|e| {
-                        AppError::ValidationError(format!(
-                            "Failed to write error output from external process: {e}"
-                        ))
-                    })?;
+                child_stderr.read_to_string(&mut output_string).await?;
 
                 return Err(AppError::ValidationError(format!(
-                    "Preprocessor command failed:\n{}",
+                    "External command failed:\n{}",
                     output_string
-                )));
+                ))
+                .into());
             }
             _ => {}
         }
 
-        Ok(output)
+        Ok(capture)
     }
 
-    pub fn calculate_job_diffs(&mut self) -> Result<(), AppError> {
+    pub async fn calculate_job_diffs(&mut self) -> Result<()> {
         let first_request = match self.requests.first_mut() {
             Some(request) => request,
             None => {
                 return Err(AppError::ValidationError(
                     "missing first job".into(),
-                ))
+                )
+                .into())
             }
         };
 
@@ -354,14 +339,16 @@ impl Job {
             None => {
                 return Err(AppError::ValidationError(
                     "missing first job response".into(),
-                ))
+                )
+                .into())
             }
         };
 
         let old = Job::apply_response_processor(
             &self.response_processor,
             &first_response,
-        )?;
+        )
+        .await?;
 
         let first_response_lines = old.lines();
 
@@ -385,21 +372,34 @@ impl Job {
                     return Err(AppError::ValidationError(format!(
                         "missing response for job: {}",
                         request.uri.to_string()
-                    )))
+                    ))
+                    .into())
                 }
             };
 
             let new = Job::apply_response_processor(
                 &self.response_processor,
                 &second_response,
-            )?;
+            )
+            .await?;
 
-            let diff = TextDiff::from_lines(&old, &new);
+            let permit = self.threads_semaphore.acquire().await?;
 
-            let diffs = diff
-                .iter_all_changes()
-                .map(|change| (change.tag(), change.to_string()))
-                .collect();
+            let diffs = task::spawn_blocking(move || {
+                let diff = TextDiff::from_lines(&old, &new);
+
+                diff.iter_all_changes()
+                    .map(|change| {
+                        (
+                            change.tag(),
+                            change.value_ref().to_owned().to_owned(),
+                        )
+                    })
+                    .collect()
+            })
+            .await?;
+
+            drop(permit);
 
             request.set_diffs_and_calculate_status(diffs);
         }
@@ -413,10 +413,10 @@ impl Job {
         Ok(())
     }
 
-    pub fn apply_response_processor(
+    pub async fn apply_response_processor(
         response_processor: &Option<Vec<String>>,
         response: &ResponseVariant,
-    ) -> Result<String, AppError> {
+    ) -> Result<String> {
         let stringified_response = match serde_json::to_string_pretty(response)
         {
             Ok(res) => res,
@@ -424,7 +424,8 @@ impl Job {
                 return Err(AppError::ValidationError(format!(
                     "Failed to stringify the response, error: {}",
                     error
-                )));
+                ))
+                .into());
             }
         };
 
@@ -434,6 +435,7 @@ impl Job {
                     command,
                     Some(&stringified_response),
                 )
+                .await
             }
             _ => {}
         };

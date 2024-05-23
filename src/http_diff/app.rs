@@ -2,6 +2,7 @@ use std::sync::Arc;
 use std::time::Instant;
 use std::{collections::HashSet, time::Duration};
 
+use anyhow::Result;
 use futures_util::future::join_all;
 use tokio::{
     select,
@@ -33,6 +34,7 @@ enum JobEvent {
 pub struct App {
     pub jobs: Vec<Job>,
     pub jobs_semaphore: Arc<Semaphore>,
+    pub max_threads_semaphore: Arc<Semaphore>,
     pub app_actions_sender: broadcast::Sender<AppAction>,
 }
 
@@ -41,11 +43,18 @@ impl App {
         app_actions_sender: broadcast::Sender<AppAction>,
     ) -> Result<App, AppError> {
         let jobs_semaphore = Arc::new(Semaphore::new(0));
+        let max_threads_semaphore =
+            Arc::new(Semaphore::new(num_cpus::get() * 2));
 
-        Ok(App { jobs_semaphore, jobs: Vec::new(), app_actions_sender })
+        Ok(App {
+            jobs_semaphore,
+            max_threads_semaphore,
+            jobs: Vec::new(),
+            app_actions_sender,
+        })
     }
 
-    pub async fn start(&mut self) -> Result<(), AppError> {
+    pub async fn start(&mut self) -> Result<()> {
         self.reset_all_jobs_and_publish();
 
         let total_jobs_count = self.jobs.len();
@@ -91,7 +100,7 @@ impl App {
 
             tokio::spawn(async move {
                 let mut should_run = true;
-                let mut result: Option<Result<Job, AppError>> = None;
+                let mut result: Option<Result<Job>> = None;
 
                 let mut retry_count = 0;
 
@@ -184,7 +193,8 @@ impl App {
 
                                 return Err(AppError::Exception(
                                     "Critical runtime error occurred".into(),
-                                ));
+                                )
+                                .into());
                             }
                         }
                     }
@@ -194,7 +204,8 @@ impl App {
 
                     return Err(AppError::Exception(
                         "Failed to start job execution".into(),
-                    ));
+                    )
+                    .into());
                 }
             }
         }
@@ -280,10 +291,10 @@ impl App {
         let _ = self.app_actions_sender.send(AppAction::JobsUpdated(jobs));
     }
 
-    pub fn load_configuration_file(
+    pub async fn load_configuration_file(
         &mut self,
         path_to_file: &str,
-    ) -> Result<(), AppError> {
+    ) -> Result<()> {
         let configuration = load_config_from_file(path_to_file)?;
 
         self.jobs_semaphore =
@@ -293,6 +304,7 @@ impl App {
             &configuration,
             self.app_actions_sender.clone(),
             self.jobs_semaphore.clone(),
+            self.max_threads_semaphore.clone(),
         )?;
 
         let _ = self
@@ -320,7 +332,9 @@ impl App {
                 let command = job.request_builder.clone();
 
                 if let Some(command) = command {
-                    match Job::apply_request_builder_to_request(&command, &request) {
+                    let _ = self.max_threads_semaphore.acquire().await?;
+
+                    match Job::apply_request_builder_to_request(&command, &request).await {
                         Ok(Some(request_builder_dto)) => {
                             request.apply_request_builder_dto(request_builder_dto)
                         }
@@ -329,7 +343,7 @@ impl App {
                                 "Failed to apply request builder: '{}' to request: '{}'",
                                 command.join(" "),
                                 request.uri
-                            )))
+                            )).into())
                         }
                     };
                 }
@@ -344,10 +358,10 @@ impl App {
         Ok(())
     }
 
-    pub fn reload_configuration_file(
+    pub async fn reload_configuration_file(
         &mut self,
         path_to_file: &str,
-    ) -> Result<(), AppError> {
+    ) -> Result<()> {
         let notification = Notification::new(
             NotificationId::ReloadingConfiguration,
             "Reloading configuration file as it was changed.",
@@ -359,6 +373,6 @@ impl App {
             .app_actions_sender
             .send(AppAction::SetNotification(notification));
 
-        return self.load_configuration_file(path_to_file);
+        return self.load_configuration_file(path_to_file).await;
     }
 }

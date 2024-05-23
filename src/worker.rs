@@ -1,3 +1,9 @@
+use crate::{
+    actions::AppAction,
+    http_diff::{app::App, types::AppError},
+    ui::notification::{Notification, NotificationId, NotificationType},
+};
+use anyhow::Result;
 use futures::future::join_all;
 use notify::{
     event::{MetadataKind, ModifyKind},
@@ -12,12 +18,6 @@ use tokio::{
     sync::broadcast::{Receiver, Sender},
 };
 use tracing::{debug, error};
-
-use crate::{
-    actions::AppAction,
-    http_diff::{app::App, types::AppError},
-    ui::notification::{Notification, NotificationId, NotificationType},
-};
 
 pub async fn process_app_action(
     action: AppAction,
@@ -41,6 +41,7 @@ pub async fn process_app_action(
                         Some(Duration::from_secs(5)),
                         NotificationType::Success,
                     );
+
                     let _ = worker_actions_sender
                         .send(AppAction::SetNotification(notification));
                 }
@@ -101,7 +102,7 @@ pub async fn process_app_action(
 pub async fn handle_commands_to_http_diff_loop(
     http_diff_actions_receiver: &mut Receiver<AppAction>,
     http_diff: &mut App,
-) -> Result<(), AppError> {
+) -> Result<()> {
     loop {
         let action = match http_diff_actions_receiver.recv().await {
             Ok(action) => action,
@@ -157,10 +158,14 @@ pub async fn handle_commands_to_http_diff_loop(
                 http_diff.start_by_name(&name).await;
             }
             AppAction::TryLoadConfigurationFile(path_to_configuration) => {
-                http_diff.load_configuration_file(&path_to_configuration)?
+                http_diff
+                    .load_configuration_file(&path_to_configuration)
+                    .await?
             }
             AppAction::ReloadConfigurationFile(path_to_configuration) => {
-                http_diff.reload_configuration_file(&path_to_configuration)?
+                http_diff
+                    .reload_configuration_file(&path_to_configuration)
+                    .await?
             }
             _ => {}
         }

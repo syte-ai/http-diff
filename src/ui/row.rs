@@ -29,7 +29,7 @@ pub fn print_table_row(
     cells: Vec<StyledContent<String>>,
     with_underline: bool,
 ) {
-    let column_width = 40;
+    let column_width = 25;
 
     let cells_count = cells.len();
 
