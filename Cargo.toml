@@ -1,6 +1,6 @@
 [package]
 name = "http-diff"
-version = "0.0.4"
+version = "0.0.5"
 edition = "2021"
 authors = ["Yoni Samoded <yoni.samoded@gmail.com>"]
 description = "http-diff - CLI tool to verify consistency across web server versions. Ideal for large-scale refactors, sanity tests and maintaining data integrity across versions."
